@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "Generic schema-aware YAML/JSON configuration editor",
+  "author": "Minami Ueda",
   "scripts": {
     "dev": "pnpm -F @config-editor/web dev",
     "build": "pnpm -F @config-editor/core build && pnpm -F @config-editor/ui build && pnpm -F @config-editor/web build",
