@@ -40,4 +40,4 @@ Schemas are persisted in localStorage.
 
 ## License
 
-MIT Licence
+[MIT Licence](https://github.com/mu373/config-editor/blob/main/LICENSE)
