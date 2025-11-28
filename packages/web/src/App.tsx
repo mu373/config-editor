@@ -8,18 +8,14 @@ import {
 } from '@config-editor/ui';
 import type { SchemaPreset } from '@config-editor/core';
 
-// Try to load bundled schemas (dev mode only, may not exist in clean clone)
-async function loadBundledSchemas(): Promise<SchemaPreset[]> {
-  const schemas: SchemaPreset[] = [];
-
-  try {
-    const baseModelSchema = await import('./schemas/basemodel.json');
-    schemas.push({
-      id: 'basemodel',
-      name: 'Base Model',
-      description: 'Epidemic model configuration',
-      schema: baseModelSchema.default as SchemaPreset['schema'],
-      defaultContent: `# Base Model Configuration
+const schemaDefaults: Record<
+  string,
+  { name: string; description: string; defaultContent?: string }
+> = {
+  basemodel: {
+    name: 'Base Model',
+    description: 'Epidemic model configuration',
+    defaultContent: `# Base Model Configuration
 model:
   name: my-model
   timespan:
@@ -59,61 +55,56 @@ model:
       type: scalar
       value: 0.1
 `,
-    });
-  } catch {
-    // Schema not bundled
-  }
-
-  try {
-    const modelsetCalibrationSchema = await import(
-      './schemas/modelset_calibration.json'
-    );
-    schemas.push({
-      id: 'modelset_calibration',
-      name: 'ModelSet Calibration',
-      description: 'Calibration configuration for model sets',
-      schema: modelsetCalibrationSchema.default as SchemaPreset['schema'],
-      defaultContent: `# ModelSet Calibration Configuration
+  },
+  modelset_calibration: {
+    name: 'ModelSet Calibration',
+    description: 'Calibration configuration for model sets',
+    defaultContent: `# ModelSet Calibration Configuration
 modelset:
   name: my-calibration
 `,
-    });
-  } catch {
-    // Schema not bundled
-  }
-
-  try {
-    const modelsetSamplingSchema = await import(
-      './schemas/modelset_sampling.json'
-    );
-    schemas.push({
-      id: 'modelset_sampling',
-      name: 'ModelSet Sampling',
-      description: 'Sampling configuration for model sets',
-      schema: modelsetSamplingSchema.default as SchemaPreset['schema'],
-      defaultContent: `# ModelSet Sampling Configuration
+  },
+  modelset_sampling: {
+    name: 'ModelSet Sampling',
+    description: 'Sampling configuration for model sets',
+    defaultContent: `# ModelSet Sampling Configuration
 modelset:
   name: my-sampling
 `,
-    });
-  } catch {
-    // Schema not bundled
-  }
-
-  try {
-    const outputSchema = await import('./schemas/output.json');
-    schemas.push({
-      id: 'output',
-      name: 'Output',
-      description: 'Output configuration',
-      schema: outputSchema.default as SchemaPreset['schema'],
-      defaultContent: `# Output Configuration
+  },
+  output: {
+    name: 'Output',
+    description: 'Output configuration',
+    defaultContent: `# Output Configuration
 output:
   name: my-output
 `,
+  },
+};
+
+// Load only bundled schemas that actually exist (Vercel build may not include any)
+async function loadBundledSchemas(): Promise<SchemaPreset[]> {
+  const modules = import.meta.glob('./schemas/*.json', { eager: true });
+  const schemas: SchemaPreset[] = [];
+
+  for (const [path, mod] of Object.entries(modules)) {
+    const fileName = path.split('/').pop();
+    if (!fileName) continue;
+
+    const id = fileName.replace('.json', '');
+    const schemaModule = mod as { default?: SchemaPreset['schema'] };
+    if (!schemaModule.default) continue;
+
+    const meta =
+      schemaDefaults[id] ?? { name: id, description: `${id} schema` };
+
+    schemas.push({
+      id,
+      name: meta.name,
+      description: meta.description,
+      schema: schemaModule.default,
+      defaultContent: meta.defaultContent ?? '',
     });
-  } catch {
-    // Schema not bundled
   }
 
   return schemas;
