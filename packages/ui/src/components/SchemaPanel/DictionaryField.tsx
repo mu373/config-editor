@@ -52,14 +52,14 @@ export function DictionaryField({
   onChange,
   depth = 0,
   rootSchema,
-  globalExpandLevel,
+  globalExpandLevel = null,
 }: DictionaryFieldProps) {
   // Track if user has manually toggled this field
   const [hasBeenManuallyToggled, setHasBeenManuallyToggled] = useState(false);
   const [isExpandedLocal, setIsExpandedLocal] = useState(() => depth < 2);
 
   // Calculate whether this field should be expanded based on globalExpandLevel
-  const shouldExpandByLevel = (level: GlobalExpandLevel) => {
+  const shouldExpandByLevel = (level: GlobalExpandLevel | null) => {
     if (level === 'all') return true;
     if (level !== null && level !== undefined) {
       return depth < level;

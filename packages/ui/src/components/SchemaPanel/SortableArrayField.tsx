@@ -172,7 +172,7 @@ export function SortableArrayField({
   onChange,
   depth = 0,
   rootSchema,
-  globalExpandLevel,
+  globalExpandLevel = null,
 }: SortableArrayFieldProps) {
   const items = value ?? [];
 
@@ -184,7 +184,7 @@ export function SortableArrayField({
   const [manuallyToggledItems, setManuallyToggledItems] = useState<Set<number>>(new Set());
 
   // Calculate whether this field should be expanded based on globalExpandLevel
-  const shouldExpandByLevel = (level: GlobalExpandLevel) => {
+  const shouldExpandByLevel = (level: GlobalExpandLevel | null) => {
     if (level === 'all') return true;
     if (level !== null && level !== undefined) {
       return depth < level;
@@ -206,7 +206,7 @@ export function SortableArrayField({
   // When globalExpandLevel changes, update array item expansion states
   // but only for items that haven't been manually toggled
   useEffect(() => {
-    if (globalExpandLevel === null) return;
+    if (globalExpandLevel === null || globalExpandLevel === undefined) return;
 
     // For array items, their depth is depth + 1 (since array itself is at depth)
     const itemDepth = depth + 1;

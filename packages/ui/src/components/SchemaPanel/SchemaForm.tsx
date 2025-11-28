@@ -58,15 +58,15 @@ function setValueAtPath(
   path: string,
   value: unknown
 ): Record<string, unknown> {
-  const parts = path.match(/[^.\[\]]+|\[\d+\]/g) || [];
+  const parts = (path.match(/[^.\[\]]+|\[\d+\]/g) ?? []) as string[];
 
   if (parts.length === 0) return obj;
 
+  const [first, ...rest] = parts as [string, ...string[]];
+  if (!first) return obj;
   if (parts.length === 1) {
-    return { ...obj, [parts[0]]: value };
+    return { ...obj, [first]: value };
   }
-
-  const [first, ...rest] = parts;
   const restPath = rest.map((p, i) => {
     if (p.startsWith('[') && p.endsWith(']')) {
       return p;

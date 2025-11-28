@@ -80,14 +80,14 @@ export function FormField({
   isExpandedControlled,
   onExpandedChange,
   summaryLabel,
-  globalExpandLevel,
+  globalExpandLevel = null,
 }: FormFieldProps) {
   // Track if user has manually toggled this field
   const [hasBeenManuallyToggled, setHasBeenManuallyToggled] = useState(false);
   const [isExpandedLocal, setIsExpandedLocal] = useState(() => depth < 2);
 
   // Calculate whether this field should be expanded based on globalExpandLevel
-  const shouldExpandByLevel = (level: GlobalExpandLevel) => {
+  const shouldExpandByLevel = (level: GlobalExpandLevel | null) => {
     if (level === 'all') return true;
     if (level !== null && level !== undefined) {
       return depth < level;
@@ -154,7 +154,11 @@ export function FormField({
     const nonNullVariants: { schema: JSONSchema7; resolved: JSONSchema7 }[] = [];
     for (const v of variants) {
       const variant = v as JSONSchema7;
-      if (variant.type === 'null') continue;
+      const variantType = variant.type;
+      if (variantType === 'null') continue;
+      if (Array.isArray(variantType) && variantType.length === 1 && variantType[0] === 'null') {
+        continue;
+      }
 
       if (variant.$ref && rootSchema) {
         const resolved = resolveRef(variant, rootSchema);
@@ -200,13 +204,23 @@ export function FormField({
       const variants = s.anyOf || s.oneOf || [];
       for (const v of variants) {
         const variant = v as JSONSchema7;
-        if (variant.type && variant.type !== 'null') {
-          return Array.isArray(variant.type) ? variant.type[0] : variant.type as string;
+        if (variant.type) {
+          if (Array.isArray(variant.type)) {
+            const nonNullType = variant.type.find((t) => t !== 'null');
+            if (nonNullType) return nonNullType;
+          } else if (variant.type !== 'null') {
+            return variant.type as string;
+          }
         }
         if (variant.$ref && rootSchema) {
           const resolved = resolveRef(variant, rootSchema);
-          if (resolved.type && resolved.type !== 'null') {
-            return Array.isArray(resolved.type) ? resolved.type[0] : resolved.type as string;
+          if (resolved.type) {
+            if (Array.isArray(resolved.type)) {
+              const nonNullType = resolved.type.find((t) => t !== 'null');
+              if (nonNullType) return nonNullType;
+            } else if (resolved.type !== 'null') {
+              return resolved.type as string;
+            }
           }
         }
       }
@@ -222,7 +236,14 @@ export function FormField({
   // Check for polymorphic schemas (anyOf/oneOf with multiple non-null variants)
   const variants = effectiveSchema.anyOf || effectiveSchema.oneOf;
   if (variants) {
-    const nonNullVariants = variants.filter((v) => (v as JSONSchema7).type !== 'null');
+    const nonNullVariants = variants.filter((v) => {
+      const variant = v as JSONSchema7;
+      if (!variant.type) return true;
+      if (Array.isArray(variant.type)) {
+        return variant.type.some((t) => t !== 'null');
+      }
+      return variant.type !== 'null';
+    });
     // If there are multiple non-null variants, use VariantField
     if (nonNullVariants.length > 1) {
       return (
