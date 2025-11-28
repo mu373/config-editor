@@ -113,7 +113,7 @@ function SortableItem({ id, index, summary, children, onRemove }: SortableItemPr
         onClick={onRemove}
         className="flex items-center justify-center w-6 h-7 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
       >
-        <Trash2 className="w-4 h-4" />
+        <Trash2 className="w-3 h-3" />
       </button>
     </div>
   );

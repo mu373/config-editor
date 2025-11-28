@@ -335,7 +335,7 @@ export function VariantField({
           </div>
         </div>
         {description && !isArrayItem && (
-          <FieldDescription>{description}</FieldDescription>
+          <FieldDescription inline>{description}</FieldDescription>
         )}
 
         {/* Render the current variant's form field at full width (only for non-primitive types) */}
@@ -391,7 +391,7 @@ export function VariantField({
         </div>
       </div>
       {description && !isArrayItem && (
-        <FieldDescription>{description}</FieldDescription>
+        <FieldDescription inline>{description}</FieldDescription>
       )}
 
       {/* Render the current variant's form field (only for non-primitive types) */}

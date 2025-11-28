@@ -14,8 +14,9 @@ import {
 import { Input } from '../ui/input';
 
 // Shared component for field descriptions
-export function FieldDescription({ children, noMargin = false }: { children: React.ReactNode; noMargin?: boolean }) {
-  return <p className={`text-xs text-muted-foreground/70 ${noMargin ? '' : 'mt-1'}`}>{children}</p>;
+// When inline=true (for fields with input/select), aligned under the input: ml = w-48 (12rem) + gap-3 (0.75rem) = 12.75rem
+export function FieldDescription({ children, noMargin = false, inline = false }: { children: React.ReactNode; noMargin?: boolean; inline?: boolean }) {
+  return <p className={`text-xs text-muted-foreground/70 ${inline ? 'ml-[12.75rem]' : ''} ${noMargin ? '' : 'mt-1'}`}>{children}</p>;
 }
 
 // Shared component for nested children container with left border
@@ -41,7 +42,7 @@ export function FieldLabel({ name, title, required, summaryLabel, className = ''
       return (
         <>
           <span className="font-mono text-muted-foreground">{name}</span>
-          <span className="font-medium">: {summaryLabel}</span>
+          <span className="font-medium"> {summaryLabel}</span>
         </>
       );
     }
@@ -335,7 +336,7 @@ export function FormField({
           </div>
         </div>
         {description && !isArrayItem && (
-          <FieldDescription>{description}</FieldDescription>
+          <FieldDescription inline>{description}</FieldDescription>
         )}
       </div>
     );
@@ -362,7 +363,7 @@ export function FormField({
           </div>
         </div>
         {description && !isArrayItem && (
-          <FieldDescription>{description}</FieldDescription>
+          <FieldDescription inline>{description}</FieldDescription>
         )}
       </div>
     );
@@ -402,7 +403,7 @@ export function FormField({
           </div>
         </div>
         {description && !isArrayItem && (
-          <FieldDescription>{description}</FieldDescription>
+          <FieldDescription inline>{description}</FieldDescription>
         )}
       </div>
     );
@@ -428,7 +429,7 @@ export function FormField({
           </div>
         </div>
         {description && !isArrayItem && (
-          <FieldDescription>{description}</FieldDescription>
+          <FieldDescription inline>{description}</FieldDescription>
         )}
       </div>
     );
@@ -584,7 +585,7 @@ export function FormField({
         </div>
       </div>
       {description && !isArrayItem && (
-        <FieldDescription>{description}</FieldDescription>
+        <FieldDescription inline>{description}</FieldDescription>
       )}
     </div>
   );

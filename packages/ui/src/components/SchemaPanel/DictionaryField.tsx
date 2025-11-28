@@ -363,7 +363,7 @@ function DictionaryEntry({
   if (isObjectSchema || isArraySchema) {
     // Render as collapsible section with nested form fields
     return (
-      <div className="py-1.5 border-l-2 border-border pl-2">
+      <div className="py-1.5">
         <div className="flex items-center gap-1">
           <div
             className="flex items-center gap-1 cursor-pointer flex-1"
@@ -419,7 +419,7 @@ function DictionaryEntry({
         </div>
 
         {isExpanded && (
-          <div className="mt-1 ml-4">
+          <ChildrenContainer>
             {isArraySchema ? (
               // Render array directly with hideHeader since we already show the key in the header
               <SortableArrayField
@@ -448,7 +448,7 @@ function DictionaryEntry({
                 />
               ))
             ) : null}
-          </div>
+          </ChildrenContainer>
         )}
       </div>
     );
