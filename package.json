@@ -1,0 +1,21 @@
+{
+  "name": "config-editor",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Generic schema-aware YAML/JSON configuration editor",
+  "scripts": {
+    "dev": "pnpm -F @config-editor/web dev",
+    "build": "pnpm -F @config-editor/core build && pnpm -F @config-editor/ui build && pnpm -F @config-editor/web build",
+    "lint": "eslint packages --ext .ts,.tsx",
+    "type-check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "eslint": "^9.16.0",
+    "typescript": "^5.7.2"
+  },
+  "packageManager": "pnpm@9.14.4",
+  "engines": {
+    "node": ">=20"
+  }
+}
