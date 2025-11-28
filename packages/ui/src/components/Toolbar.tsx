@@ -50,10 +50,10 @@ export function Toolbar({ defaultSchema, defaultSchemaId }: ToolbarProps) {
   };
 
   return (
-    <div className="flex items-center gap-2 px-4 py-2 border-b bg-white">
+    <div className="flex items-center gap-2 px-4 py-2 border-b border-border bg-background">
       <button
         onClick={handleOpenFile}
-        className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+        className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-foreground hover:bg-accent rounded-md transition-colors"
         title="Open File"
       >
         <FileUp className="w-4 h-4" />
@@ -63,7 +63,7 @@ export function Toolbar({ defaultSchema, defaultSchemaId }: ToolbarProps) {
       <button
         onClick={handleDownload}
         disabled={!activeTab}
-        className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-foreground hover:bg-accent rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         title="Download"
       >
         <Download className="w-4 h-4" />
@@ -73,7 +73,7 @@ export function Toolbar({ defaultSchema, defaultSchemaId }: ToolbarProps) {
       <div className="flex-1" />
 
       {activeTab && (
-        <span className="text-sm text-gray-600">
+        <span className="text-sm text-muted-foreground">
           {activeTab.fileName || 'Untitled'}
           {activeTab.isDirty && <span className="text-orange-500 ml-1">●</span>}
         </span>

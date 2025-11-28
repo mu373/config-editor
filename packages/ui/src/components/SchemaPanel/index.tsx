@@ -1,7 +1,16 @@
-import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { useState, useMemo, useCallback, useRef } from 'react';
 import { PanelLeftClose, PanelLeft, TreeDeciduous, FormInput } from 'lucide-react';
 import { SchemaTree } from './SchemaTree';
 import { SchemaForm, type GlobalExpandLevel } from './SchemaForm';
+import { Button } from '../ui/button';
+import { ToggleGroup, ToggleGroupItem } from '../ui/toggle-group';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../ui/select';
 import type { JSONSchema7 } from 'json-schema';
 import { parseYaml, stringifyYaml, parseJson, stringifyJson, type Format, type SchemaPreset } from '@config-editor/core';
 
@@ -67,51 +76,51 @@ export function SchemaPanel({
 
   if (isCollapsed) {
     return (
-      <div className="h-full flex flex-col border-r bg-white w-10">
-        <button
+      <div className="h-full flex flex-col border-r border-border bg-background w-10">
+        <Button
+          variant="outline"
+          size="icon-sm"
           onClick={onToggleCollapse}
-          className="p-2 hover:bg-gray-100 rounded m-1"
+          className="m-1"
           title="Expand Schema Panel"
         >
-          <PanelLeft className="w-5 h-5 text-gray-600" />
-        </button>
+          <PanelLeft className="size-3.5" />
+        </Button>
       </div>
     );
   }
 
   return (
-    <div className="h-full flex flex-col border-r bg-white">
-      <div className="flex items-center justify-between px-3 h-10 border-b bg-gray-50">
+    <div className="h-full flex flex-col border-r border-border bg-background">
+      <div className="flex items-center justify-between px-3 h-10 border-b border-border bg-muted">
         <div className="flex items-center gap-2 min-w-0">
           {schemas && schemas.length > 0 && onSchemaChange ? (
-            <select
-              value={schemaId || ''}
-              onChange={(e) => onSchemaChange(e.target.value)}
-              className="text-xs font-medium text-gray-700 h-6 px-2 border border-gray-200 rounded bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 max-w-[180px] truncate"
-              title="Select schema"
-            >
-              {!schemaId && (
-                <option value="" disabled>
-                  Select schema...
-                </option>
-              )}
-              {schemas.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
+            <Select value={schemaId || ''} onValueChange={onSchemaChange}>
+              <SelectTrigger
+                size="sm"
+                className="h-7 text-xs font-medium max-w-[180px] px-2 bg-background"
+                title="Select schema"
+              >
+                <SelectValue placeholder="Select schema..." />
+              </SelectTrigger>
+              <SelectContent>
+                {schemas.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           ) : (
-            <span className="text-sm font-medium text-gray-700 truncate">
+            <span className="text-sm font-medium text-foreground truncate">
               {schemas?.find((s) => s.id === schemaId)?.name || schemaId || 'Select schema...'}
             </span>
           )}
           {viewMode === 'form' && (
-            <select
-              value={globalExpandLevel === null ? '' : globalExpandLevel}
-              onChange={(e) => {
-                const val = e.target.value;
-                if (val === '') {
+            <Select
+              value={globalExpandLevel === null ? 'auto' : String(globalExpandLevel)}
+              onValueChange={(val) => {
+                if (val === 'auto') {
                   setGlobalExpandLevel(null);
                 } else if (val === 'all') {
                   setGlobalExpandLevel('all');
@@ -119,56 +128,53 @@ export function SchemaPanel({
                   setGlobalExpandLevel(parseInt(val, 10));
                 }
               }}
-              className="text-xs h-6 px-1.5 border border-gray-200 rounded bg-white text-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              title="Expand level"
             >
-              <option value="">Auto</option>
-              <option value="0">Root only</option>
-              <option value="1">Level 1</option>
-              <option value="2">Level 2</option>
-              <option value="3">Level 3</option>
-              <option value="all">All</option>
-            </select>
+              <SelectTrigger
+                size="sm"
+                className="h-7 text-xs px-2 text-muted-foreground bg-background"
+                title="Expand level"
+              >
+                <SelectValue placeholder="Auto" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="auto">Auto</SelectItem>
+                <SelectItem value="0">Root only</SelectItem>
+                <SelectItem value="1">Level 1</SelectItem>
+                <SelectItem value="2">Level 2</SelectItem>
+                <SelectItem value="3">Level 3</SelectItem>
+                <SelectItem value="all">All</SelectItem>
+              </SelectContent>
+            </Select>
           )}
         </div>
         <div className="flex items-center gap-1">
-          {/* View mode toggle */}
-          <div className="flex items-center bg-gray-200 rounded p-0.5 mr-2">
-            <button
-              onClick={() => setViewMode('form')}
-              className={`p-1 rounded transition-colors ${
-                viewMode === 'form'
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-500 hover:text-gray-700'
-              }`}
-              title="Form view"
-            >
-              <FormInput className="w-3.5 h-3.5" />
-            </button>
-            <button
-              onClick={() => setViewMode('tree')}
-              className={`p-1 rounded transition-colors ${
-                viewMode === 'tree'
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-500 hover:text-gray-700'
-              }`}
-              title="Tree view"
-            >
-              <TreeDeciduous className="w-3.5 h-3.5" />
-            </button>
-          </div>
-          <button
+          <ToggleGroup
+            type="single"
+            value={viewMode}
+            onValueChange={(value) => value && setViewMode(value as ViewMode)}
+            variant="outline"
+            size="sm"
+          >
+            <ToggleGroupItem value="form" title="Form view">
+              <FormInput className="size-3.5" />
+            </ToggleGroupItem>
+            <ToggleGroupItem value="tree" title="Tree view">
+              <TreeDeciduous className="size-3.5" />
+            </ToggleGroupItem>
+          </ToggleGroup>
+          <Button
+            variant="outline"
+            size="icon-sm"
             onClick={onToggleCollapse}
-            className="p-1 hover:bg-gray-200 rounded"
             title="Collapse Schema Panel"
           >
-            <PanelLeftClose className="w-4 h-4 text-gray-600" />
-          </button>
+            <PanelLeftClose className="size-3.5" />
+          </Button>
         </div>
       </div>
 
       {parseError && (
-        <div className="px-3 py-2 bg-yellow-50 border-b border-yellow-200 text-xs text-yellow-800">
+        <div className="px-3 py-2 bg-yellow-50 border-b border-border text-xs text-yellow-800">
           ⚠ Parse error: showing last valid state
         </div>
       )}
@@ -186,7 +192,7 @@ export function SchemaPanel({
             />
           )
         ) : (
-          <div className="p-4 text-sm text-gray-500">No schema loaded</div>
+          <div className="p-4 text-sm text-muted-foreground">No schema loaded</div>
         )}
       </div>
     </div>

@@ -25,7 +25,7 @@ import {
   ChevronsUpDown,
 } from 'lucide-react';
 import type { JSONSchema7 } from 'json-schema';
-import { FormField, FieldDescription, ChildrenContainer, type GlobalExpandLevel } from './FormField';
+import { FormField, FieldDescription, ChildrenContainer, FieldLabel, type GlobalExpandLevel } from './FormField';
 
 interface SortableItemProps {
   id: string;
@@ -93,35 +93,28 @@ function SortableItem({ id, index, summary, children, onRemove }: SortableItemPr
     opacity: isDragging ? 0.5 : 1,
   };
 
-  // Display index with optional summary preview
-  const label = summary ? `${index}: ${summary}` : `${index}`;
-
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className={`flex items-start gap-2 mb-2 group ${isDragging ? 'bg-gray-50 rounded' : ''}`}
+      className={`flex items-start gap-2 group py-1 ${isDragging ? 'bg-muted rounded' : ''}`}
     >
-      <div className="flex items-center justify-center h-6 w-6">
-        <button
-          type="button"
-          className="text-gray-300 hover:text-gray-500 cursor-grab active:cursor-grabbing"
-          {...attributes}
-          {...listeners}
-        >
-          <GripVertical className="w-4 h-4" />
-        </button>
-      </div>
-      <div className="flex-1">{children}</div>
-      <div className="flex items-center justify-center h-6 w-6">
-        <button
-          type="button"
-          onClick={onRemove}
-          className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-        >
-          <Trash2 className="w-4 h-4" />
-        </button>
-      </div>
+      <button
+        type="button"
+        className="flex items-center justify-center w-6 h-7 text-muted-foreground/50 hover:text-muted-foreground cursor-grab active:cursor-grabbing flex-shrink-0"
+        {...attributes}
+        {...listeners}
+      >
+        <GripVertical className="w-4 h-4" />
+      </button>
+      <div className="flex-1 min-w-0">{children}</div>
+      <button
+        type="button"
+        onClick={onRemove}
+        className="flex items-center justify-center w-6 h-7 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+      >
+        <Trash2 className="w-4 h-4" />
+      </button>
     </div>
   );
 }
@@ -137,6 +130,8 @@ interface SortableArrayFieldProps {
   rootSchema?: JSONSchema7;
   /** Global expand level - used as initial default only */
   globalExpandLevel?: GlobalExpandLevel;
+  /** Hide the header and render only the array content (for use inside DictionaryField) */
+  hideHeader?: boolean;
 }
 
 function resolveRef(schema: JSONSchema7, rootSchema: JSONSchema7): JSONSchema7 {
@@ -173,6 +168,7 @@ export function SortableArrayField({
   depth = 0,
   rootSchema,
   globalExpandLevel = null,
+  hideHeader = false,
 }: SortableArrayFieldProps) {
   const items = value ?? [];
 
@@ -300,44 +296,127 @@ export function SortableArrayField({
     setExpandedItems(new Set(items.map((_, i) => i)));
   }, [items]);
 
+  // When hideHeader is true, render just the array content without header
+  // Used when embedded inside DictionaryField which already provides a header
+  if (hideHeader) {
+    return (
+      <div>
+        <div className="flex items-center gap-2 mb-1">
+          <span className="text-xs text-muted-foreground">({items.length} items)</span>
+          {items.length > 0 && itemsAreObjects && (
+            <>
+              <span className="text-border">|</span>
+              <button
+                type="button"
+                onClick={handleCollapseAll}
+                className="text-xs text-muted-foreground hover:text-foreground"
+              >
+                Collapse
+              </button>
+              <button
+                type="button"
+                onClick={handleExpandAll}
+                className="text-xs text-muted-foreground hover:text-foreground"
+              >
+                Expand
+              </button>
+            </>
+          )}
+        </div>
+
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext
+            items={itemIds}
+            strategy={verticalListSortingStrategy}
+          >
+            {items.map((item, index) => (
+              <SortableItem
+                key={itemIds[index]}
+                id={itemIds[index]}
+                index={index}
+                summary={getSummaryValue(item, resolvedItemSchema, rootSchema)}
+                onRemove={() => handleRemoveItem(index)}
+              >
+                <FormField
+                  name={`[${index}]`}
+                  schema={resolvedItemSchema}
+                  value={item}
+                  path={`${path}[${index}]`}
+                  onChange={(_, newValue) => handleItemChange(index, newValue)}
+                  depth={1}
+                  rootSchema={rootSchema}
+                  isExpandedControlled={itemsAreObjects ? expandedItems.has(index) : undefined}
+                  onExpandedChange={itemsAreObjects ? (expanded) => {
+                    setManuallyToggledItems(prev => new Set(prev).add(index));
+                    setExpandedItems(prev => {
+                      const next = new Set(prev);
+                      if (expanded) {
+                        next.add(index);
+                      } else {
+                        next.delete(index);
+                      }
+                      return next;
+                    });
+                  } : undefined}
+                  summaryLabel={getSummaryValue(item, resolvedItemSchema, rootSchema)}
+                  globalExpandLevel={globalExpandLevel}
+                />
+              </SortableItem>
+            ))}
+          </SortableContext>
+        </DndContext>
+
+        <button
+          type="button"
+          onClick={handleAddItem}
+          className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 py-1"
+        >
+          <Plus className="w-3 h-3" />
+          Add
+        </button>
+      </div>
+    );
+  }
+
   // At depth 0 (root level), children render at full width outside the header row
   // At deeper levels, children render inside the content area (indented)
   if (depth === 0) {
     return (
-      <div className="mb-2">
+      <div className="py-2">
         {/* Header row: label with chevron | count and controls */}
         <div className="flex items-center gap-3 h-6">
           <div
             className="flex items-center gap-1 cursor-pointer"
             onClick={() => setIsExpanded(!isExpanded)}
           >
-            <span className="text-sm font-medium text-gray-700">
-              {title}
-              {required && <span className="text-red-500 ml-0.5">*</span>}
-            </span>
+            <FieldLabel name={name} title={title} required={required} as="span" />
             {isExpanded ? (
-              <ChevronDown className="w-3 h-3 text-gray-400" />
+              <ChevronDown className="w-3 h-3 text-muted-foreground" />
             ) : (
-              <ChevronRight className="w-3 h-3 text-gray-400" />
+              <ChevronRight className="w-3 h-3 text-muted-foreground" />
             )}
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-400">({items.length} items)</span>
+            <span className="text-xs text-muted-foreground">({items.length} items)</span>
             {items.length > 0 && itemsAreObjects && (
               <>
-                <span className="text-gray-300">|</span>
+                <span className="text-border">|</span>
                 <button
                   type="button"
                   onClick={handleCollapseAll}
-                  className="text-xs text-gray-500 hover:text-gray-700"
+                  className="text-xs text-muted-foreground hover:text-foreground"
                 >
                   Collapse
                 </button>
                 <button
                   type="button"
                   onClick={handleExpandAll}
-                  className="text-xs text-gray-500 hover:text-gray-700"
+                  className="text-xs text-muted-foreground hover:text-foreground"
                 >
                   Expand
                 </button>
@@ -370,7 +449,7 @@ export function SortableArrayField({
                     onRemove={() => handleRemoveItem(index)}
                   >
                     <FormField
-                      name={`${index}`}
+                      name={`[${index}]`}
                       schema={resolvedItemSchema}
                       value={item}
                       path={`${path}[${index}]`}
@@ -402,7 +481,7 @@ export function SortableArrayField({
             <button
               type="button"
               onClick={handleAddItem}
-              className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 py-1"
+              className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 py-1"
             >
               <Plus className="w-3 h-3" />
               Add
@@ -415,40 +494,37 @@ export function SortableArrayField({
 
   // Deeper levels: children inside content area (indented)
   return (
-    <div className="mb-2">
+    <div className="py-2">
       {/* Header row: label with chevron | count and controls */}
       <div className="flex items-center gap-3 h-6">
         <div
           className="flex items-center gap-1 cursor-pointer"
           onClick={() => setIsExpanded(!isExpanded)}
         >
-          <span className="text-sm font-medium text-gray-700">
-            {title}
-            {required && <span className="text-red-500 ml-0.5">*</span>}
-          </span>
+          <FieldLabel name={name} title={title} required={required} as="span" />
           {isExpanded ? (
-            <ChevronDown className="w-3 h-3 text-gray-400" />
+            <ChevronDown className="w-3 h-3 text-muted-foreground" />
           ) : (
-            <ChevronRight className="w-3 h-3 text-gray-400" />
+            <ChevronRight className="w-3 h-3 text-muted-foreground" />
           )}
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-400">({items.length} items)</span>
+          <span className="text-xs text-muted-foreground">({items.length} items)</span>
           {items.length > 0 && itemsAreObjects && (
             <>
-              <span className="text-gray-300">|</span>
+              <span className="text-border">|</span>
               <button
                 type="button"
                 onClick={handleCollapseAll}
-                className="text-xs text-gray-500 hover:text-gray-700"
+                className="text-xs text-muted-foreground hover:text-foreground"
               >
                 Collapse
               </button>
               <button
                 type="button"
                 onClick={handleExpandAll}
-                className="text-xs text-gray-500 hover:text-gray-700"
+                className="text-xs text-muted-foreground hover:text-foreground"
               >
                 Expand
               </button>
@@ -480,7 +556,7 @@ export function SortableArrayField({
                   onRemove={() => handleRemoveItem(index)}
                 >
                   <FormField
-                    name={`${index}`}
+                    name={`[${index}]`}
                     schema={resolvedItemSchema}
                     value={item}
                     path={`${path}[${index}]`}
@@ -512,7 +588,7 @@ export function SortableArrayField({
           <button
             type="button"
             onClick={handleAddItem}
-            className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 py-1"
+            className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 py-1"
           >
             <Plus className="w-3 h-3" />
             Add

@@ -110,13 +110,13 @@ function OptionalField({ name, schema, rootSchema, onAdd }: OptionalFieldProps) 
     <button
       type="button"
       onClick={onAdd}
-      className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-50 rounded-md transition-colors group"
+      className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors group"
     >
-      <Plus className="w-4 h-4 text-gray-400 group-hover:text-blue-500" />
+      <Plus className="w-4 h-4 text-muted-foreground group-hover:text-primary" />
       <div className="flex-1">
         <span className="font-medium">{title}</span>
         {description && (
-          <span className="text-xs text-gray-400 ml-2">{description}</span>
+          <span className="text-xs text-muted-foreground/70 ml-2">{description}</span>
         )}
       </div>
     </button>
@@ -153,7 +153,7 @@ export function SchemaForm({ schema, value, onChange, globalExpandLevel }: Schem
   const properties = schema.properties;
   if (!properties) {
     return (
-      <div className="p-4 text-sm text-gray-500">
+      <div className="p-4 text-sm text-muted-foreground">
         No properties defined in schema
       </div>
     );
@@ -198,7 +198,7 @@ export function SchemaForm({ schema, value, onChange, globalExpandLevel }: Schem
               <button
                 type="button"
                 onClick={() => handleDeleteField(key)}
-                className="absolute top-0 right-0 p-1 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                className="absolute top-0 right-0 p-1 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
                 title="Remove field"
               >
                 <Trash2 className="w-3.5 h-3.5" />
@@ -210,8 +210,8 @@ export function SchemaForm({ schema, value, onChange, globalExpandLevel }: Schem
 
       {/* Optional fields (click to add) */}
       {optionalFields.length > 0 && (
-        <div className="mt-4 pt-3 border-t border-gray-100">
-          <div className="text-xs text-gray-400 uppercase tracking-wide mb-2 px-1">
+        <div className="mt-4 pt-3 border-t border-border">
+          <div className="text-xs text-muted-foreground uppercase tracking-wide mb-2 px-1">
             Optional fields
           </div>
           <div className="space-y-1">

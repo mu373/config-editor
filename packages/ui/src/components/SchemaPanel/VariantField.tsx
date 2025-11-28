@@ -1,6 +1,14 @@
 import { useState, useMemo, useCallback } from 'react';
 import type { JSONSchema7 } from 'json-schema';
-import { FormField, FieldDescription, ChildrenContainer, type GlobalExpandLevel } from './FormField';
+import { FormField, FieldDescription, ChildrenContainer, FieldLabel, type GlobalExpandLevel } from './FormField';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../ui/select';
+import { Input } from '../ui/input';
 
 interface VariantFieldProps {
   name: string;
@@ -216,18 +224,21 @@ export function VariantField({
     // Handle enum type (select dropdown)
     if (variantSchema.enum) {
       return (
-        <select
+        <Select
           value={(value as string) ?? ''}
-          onChange={(e) => onChange(path, e.target.value || null)}
-          className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent"
+          onValueChange={(val) => onChange(path, val || null)}
         >
-          <option value="">-- Select --</option>
-          {variantSchema.enum.map((opt) => (
-            <option key={String(opt)} value={String(opt)}>
-              {String(opt)}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger size="sm" className="flex-1 h-8 text-sm">
+            <SelectValue placeholder="-- Select --" />
+          </SelectTrigger>
+          <SelectContent>
+            {variantSchema.enum.map((opt) => (
+              <SelectItem key={String(opt)} value={String(opt)}>
+                {String(opt)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       );
     }
 
@@ -235,20 +246,22 @@ export function VariantField({
       const isDate = variantSchema.format === 'date';
       const isDateTime = variantSchema.format === 'date-time';
       return (
-        <input
+        <Input
           type={isDate ? 'date' : isDateTime ? 'datetime-local' : 'text'}
+          size="sm"
           value={(value as string) ?? ''}
           onChange={(e) => onChange(path, e.target.value || null)}
           placeholder={variantSchema.default as string}
-          className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent"
+          className="flex-1"
         />
       );
     }
 
     if (variantType === 'number' || variantType === 'integer') {
       return (
-        <input
+        <Input
           type="number"
+          size="sm"
           value={(value as number) ?? ''}
           onChange={(e) => {
             const val = e.target.value;
@@ -261,7 +274,7 @@ export function VariantField({
           min={variantSchema.minimum}
           max={variantSchema.maximum}
           step={variantType === 'integer' ? 1 : 'any'}
-          className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent"
+          className="flex-1"
         />
       );
     }
@@ -275,7 +288,7 @@ export function VariantField({
             onChange={(e) => onChange(path, e.target.checked)}
             className="sr-only peer"
           />
-          <div className="w-8 h-4 bg-gray-200 peer-focus:outline-none peer-focus:ring-1 peer-focus:ring-blue-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-blue-600"></div>
+          <div className="w-8 h-4 bg-input peer-focus:outline-none peer-focus:ring-1 peer-focus:ring-ring rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-input after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-primary"></div>
         </label>
       );
     }
@@ -283,43 +296,47 @@ export function VariantField({
     return null;
   };
 
+  // Check if this is an array item (name like [0], [1], etc.)
+  const isArrayItem = /^\[\d+\]$/.test(name);
+
   // At depth 0 (root level), children render at full width outside the header row
   // At deeper levels, children render inside the content area (indented)
   if (depth === 0) {
     return (
-      <div className="mb-2">
+      <div className={isArrayItem ? '' : 'py-2'}>
         {/* Header row: label | variant selector + inline input for primitives */}
-        <div className="flex items-start gap-3">
-          <label className="flex-shrink-0 w-32 text-sm font-medium text-gray-700 pt-0.5">
-            {title}
-            {required && <span className="text-red-500 ml-0.5">*</span>}
-          </label>
+        <div className={`flex items-center gap-3 ${isArrayItem ? 'h-7' : ''}`}>
+          <FieldLabel name={name} title={title} required={required} className={`flex-shrink-0 ${isArrayItem ? '' : 'w-48'}`} />
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <select
-                value={currentVariantIndex}
-                onChange={(e) => handleVariantChange(parseInt(e.target.value))}
-                className="text-xs px-2 py-1 border border-gray-200 rounded bg-gray-50 text-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-500 flex-shrink-0"
+              <Select
+                value={String(currentVariantIndex)}
+                onValueChange={(val) => handleVariantChange(parseInt(val))}
               >
-                {hasNullVariant && (
-                  <option value={variants.find((v) => v.isNull)?.index}>
-                    None
-                  </option>
-                )}
-                {selectableVariants.map((variant) => (
-                  <option key={variant.index} value={variant.index}>
-                    {variant.label}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger size="sm" className="h-7 text-xs px-2 bg-muted text-muted-foreground flex-shrink-0 w-auto">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {hasNullVariant && (
+                    <SelectItem value={String(variants.find((v) => v.isNull)?.index)}>
+                      None
+                    </SelectItem>
+                  )}
+                  {selectableVariants.map((variant) => (
+                    <SelectItem key={variant.index} value={String(variant.index)}>
+                      {variant.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               {/* Render primitive input inline */}
               {currentIsPrimitive && renderPrimitiveInput()}
             </div>
-            {description && (
-              <FieldDescription>{description}</FieldDescription>
-            )}
           </div>
         </div>
+        {description && !isArrayItem && (
+          <FieldDescription>{description}</FieldDescription>
+        )}
 
         {/* Render the current variant's form field at full width (only for non-primitive types) */}
         {currentVariant && !currentVariant.isNull && !currentIsPrimitive && (
@@ -342,39 +359,40 @@ export function VariantField({
 
   // Deeper levels: children inside content area (indented)
   return (
-    <div className="mb-2">
+    <div className={isArrayItem ? '' : 'py-2'}>
       {/* Header row: label | variant selector + inline input for primitives */}
-      <div className="flex items-start gap-3">
-        <label className="flex-shrink-0 w-32 text-sm font-medium text-gray-700 pt-0.5">
-          {title}
-          {required && <span className="text-red-500 ml-0.5">*</span>}
-        </label>
+      <div className={`flex items-center gap-3 ${isArrayItem ? 'h-7' : ''}`}>
+        <FieldLabel name={name} title={title} required={required} className={`flex-shrink-0 ${isArrayItem ? '' : 'w-48'}`} />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <select
-              value={currentVariantIndex}
-              onChange={(e) => handleVariantChange(parseInt(e.target.value))}
-              className="text-xs px-2 py-1 border border-gray-200 rounded bg-gray-50 text-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-500 flex-shrink-0"
+            <Select
+              value={String(currentVariantIndex)}
+              onValueChange={(val) => handleVariantChange(parseInt(val))}
             >
-              {hasNullVariant && (
-                <option value={variants.find((v) => v.isNull)?.index}>
-                  None
-                </option>
-              )}
-              {selectableVariants.map((variant) => (
-                <option key={variant.index} value={variant.index}>
-                  {variant.label}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger size="sm" className="h-7 text-xs px-2 bg-muted text-muted-foreground flex-shrink-0 w-auto">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {hasNullVariant && (
+                  <SelectItem value={String(variants.find((v) => v.isNull)?.index)}>
+                    None
+                  </SelectItem>
+                )}
+                {selectableVariants.map((variant) => (
+                  <SelectItem key={variant.index} value={String(variant.index)}>
+                    {variant.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             {/* Render primitive input inline */}
             {currentIsPrimitive && renderPrimitiveInput()}
           </div>
-          {description && (
-            <FieldDescription>{description}</FieldDescription>
-          )}
         </div>
       </div>
+      {description && !isArrayItem && (
+        <FieldDescription>{description}</FieldDescription>
+      )}
 
       {/* Render the current variant's form field (only for non-primitive types) */}
       {currentVariant && !currentVariant.isNull && !currentIsPrimitive && (

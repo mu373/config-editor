@@ -3,6 +3,7 @@ import MonacoEditor, { type Monaco } from '@monaco-editor/react';
 import { configureMonacoYaml } from 'monaco-yaml';
 import type { editor } from 'monaco-editor';
 import { useEditorStore } from '../store/editorStore';
+import { ToggleGroup, ToggleGroupItem } from './ui/toggle-group';
 import {
   parseYaml,
   stringifyYaml,
@@ -77,7 +78,7 @@ export function Editor() {
 
   if (!activeTab) {
     return (
-      <div className="h-full w-full flex items-center justify-center bg-gray-50 text-gray-500">
+      <div className="h-full w-full flex items-center justify-center bg-muted text-muted-foreground">
         <div className="text-center">
           <p className="text-lg">No file open</p>
           <p className="text-sm mt-2">
@@ -93,31 +94,21 @@ export function Editor() {
   return (
     <div className="h-full w-full flex flex-col">
       {/* Header - matching SchemaPanel style */}
-      <div className="flex items-center justify-end px-3 h-10 border-b bg-gray-50">
-        <div className="flex items-center bg-gray-200 rounded p-0.5">
-          <button
-            onClick={() => handleFormatToggle('yaml')}
-            className={`px-2 py-1 text-xs rounded transition-colors ${
-              activeTab.format === 'yaml'
-                ? 'bg-white text-gray-900 shadow-sm'
-                : 'text-gray-500 hover:text-gray-700'
-            }`}
-            title="YAML format"
-          >
+      <div className="flex items-center justify-end px-3 h-10 border-b border-border bg-muted">
+        <ToggleGroup
+          type="single"
+          value={activeTab.format}
+          onValueChange={(value) => value && handleFormatToggle(value as Format)}
+          variant="outline"
+          size="sm"
+        >
+          <ToggleGroupItem value="yaml" title="YAML format" className="text-xs">
             YAML
-          </button>
-          <button
-            onClick={() => handleFormatToggle('json')}
-            className={`px-2 py-1 text-xs rounded transition-colors ${
-              activeTab.format === 'json'
-                ? 'bg-white text-gray-900 shadow-sm'
-                : 'text-gray-500 hover:text-gray-700'
-            }`}
-            title="JSON format"
-          >
+          </ToggleGroupItem>
+          <ToggleGroupItem value="json" title="JSON format" className="text-xs">
             JSON
-          </button>
-        </div>
+          </ToggleGroupItem>
+        </ToggleGroup>
       </div>
 
       {/* Monaco Editor */}

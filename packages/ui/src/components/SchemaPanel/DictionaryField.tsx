@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react';
 import { ChevronDown, ChevronRight, Plus, Trash2 } from 'lucide-react';
 import type { JSONSchema7 } from 'json-schema';
-import { FormField, FieldDescription, ChildrenContainer, type GlobalExpandLevel } from './FormField';
+import { FormField, FieldDescription, ChildrenContainer, FieldLabel, type GlobalExpandLevel } from './FormField';
+import { SortableArrayField } from './SortableArrayField';
+import { Input } from '../ui/input';
+import { Button } from '../ui/button';
 
 interface DictionaryFieldProps {
   name: string;
@@ -174,42 +177,39 @@ export function DictionaryField({
   };
 
   return (
-    <div className="mb-2">
+    <div className="py-2">
       {/* Header row: label with chevron | count and controls */}
       <div className="flex items-center gap-3">
         <div
           className="flex items-center gap-1 cursor-pointer"
           onClick={() => setIsExpanded(!isExpanded)}
         >
-          <span className="text-sm font-medium text-gray-700">
-            {title}
-            {required && <span className="text-red-500 ml-0.5">*</span>}
-          </span>
+          <FieldLabel name={name} title={title} required={required} as="span" />
           {isExpanded ? (
-            <ChevronDown className="w-3 h-3 text-gray-400" />
+            <ChevronDown className="w-3 h-3 text-muted-foreground" />
           ) : (
-            <ChevronRight className="w-3 h-3 text-gray-400" />
+            <ChevronRight className="w-3 h-3 text-muted-foreground" />
           )}
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-400">
+          <span className="text-xs text-muted-foreground">
             ({entries.length} {entries.length === 1 ? 'entry' : 'entries'})
           </span>
           {entries.length > 0 && (
             <>
-              <span className="text-gray-300">|</span>
+              <span className="text-border">|</span>
               <button
                 type="button"
                 onClick={handleCollapseAll}
-                className="text-xs text-gray-500 hover:text-gray-700"
+                className="text-xs text-muted-foreground hover:text-foreground"
               >
                 Collapse
               </button>
               <button
                 type="button"
                 onClick={handleExpandAll}
-                className="text-xs text-gray-500 hover:text-gray-700"
+                className="text-xs text-muted-foreground hover:text-foreground"
               >
                 Expand
               </button>
@@ -224,10 +224,11 @@ export function DictionaryField({
         <ChildrenContainer>
           {/* Add new key input */}
           {isAddingKey && (
-            <div className="mb-3 p-2 bg-blue-50 rounded border border-blue-200">
+            <div className="mb-3 p-2 bg-primary/10 rounded border border-primary/30">
               <div className="flex items-center gap-2">
-                <input
+                <Input
                   type="text"
+                  size="sm"
                   value={newKeyInput}
                   onChange={(e) => setNewKeyInput(e.target.value)}
                   onKeyDown={(e) => {
@@ -238,27 +239,28 @@ export function DictionaryField({
                     }
                   }}
                   placeholder="Enter key name..."
-                  className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="flex-1"
                   autoFocus
                 />
-                <button
+                <Button
                   type="button"
+                  size="sm"
                   onClick={handleAddKey}
                   disabled={!newKeyInput.trim()}
-                  className="px-2 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Add
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="sm"
                   onClick={() => {
                     setIsAddingKey(false);
                     setNewKeyInput('');
                   }}
-                  className="px-2 py-1 text-sm text-gray-600 hover:text-gray-800"
                 >
                   Cancel
-                </button>
+                </Button>
               </div>
             </div>
           )}
@@ -286,7 +288,7 @@ export function DictionaryField({
             <button
               type="button"
               onClick={() => setIsAddingKey(true)}
-              className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 py-1"
+              className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 py-1"
             >
               <Plus className="w-3 h-3" />
               Add
@@ -355,24 +357,27 @@ function DictionaryEntry({
 
   // Check if the schema is an object type (has properties or is type: object)
   const isObjectSchema = effectiveSchema.type === 'object' || effectiveSchema.properties;
+  // Check if the schema is an array type
+  const isArraySchema = effectiveSchema.type === 'array' && effectiveSchema.items;
 
-  if (isObjectSchema) {
+  if (isObjectSchema || isArraySchema) {
     // Render as collapsible section with nested form fields
     return (
-      <div className="mb-2 border-l-2 border-gray-300 pl-2">
+      <div className="py-1.5 border-l-2 border-border pl-2">
         <div className="flex items-center gap-1">
           <div
             className="flex items-center gap-1 cursor-pointer flex-1"
             onClick={() => setIsExpanded(!isExpanded)}
           >
             {isExpanded ? (
-              <ChevronDown className="w-3 h-3 text-gray-400" />
+              <ChevronDown className="w-3 h-3 text-muted-foreground" />
             ) : (
-              <ChevronRight className="w-3 h-3 text-gray-400" />
+              <ChevronRight className="w-3 h-3 text-muted-foreground" />
             )}
             {isEditing ? (
-              <input
+              <Input
                 type="text"
+                size="sm"
                 value={editKey}
                 onChange={(e) => setEditKey(e.target.value)}
                 onBlur={handleKeySubmit}
@@ -384,12 +389,12 @@ function DictionaryEntry({
                   }
                 }}
                 onClick={(e) => e.stopPropagation()}
-                className="px-1 py-0.5 text-sm font-medium border border-blue-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-auto font-medium border-primary/50"
                 autoFocus
               />
             ) : (
               <span
-                className="text-sm font-medium text-blue-700 hover:underline cursor-text"
+                className="text-sm font-medium text-primary hover:underline cursor-text"
                 onClick={(e) => {
                   e.stopPropagation();
                   setIsEditing(true);
@@ -406,28 +411,43 @@ function DictionaryEntry({
               e.stopPropagation();
               onDelete();
             }}
-            className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
+            className="p-1 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded"
             title="Delete entry"
           >
             <Trash2 className="w-3 h-3" />
           </button>
         </div>
 
-        {isExpanded && effectiveSchema.properties && (
+        {isExpanded && (
           <div className="mt-1 ml-4">
-            {Object.entries(effectiveSchema.properties).map(([propKey, propSchema]) => (
-              <FormField
-                key={propKey}
-                name={propKey}
-                schema={propSchema as JSONSchema7}
-                value={(value as Record<string, unknown>)?.[propKey]}
-                path={`${path}.${propKey}`}
-                required={effectiveSchema.required?.includes(propKey)}
+            {isArraySchema ? (
+              // Render array directly with hideHeader since we already show the key in the header
+              <SortableArrayField
+                name={entryKey}
+                schema={effectiveSchema}
+                value={(value as unknown[]) ?? []}
+                path={path}
                 onChange={onChange}
-                depth={0}
+                depth={1}
                 rootSchema={rootSchema}
+                hideHeader
               />
-            ))}
+            ) : effectiveSchema.properties ? (
+              // Render object properties
+              Object.entries(effectiveSchema.properties).map(([propKey, propSchema]) => (
+                <FormField
+                  key={propKey}
+                  name={propKey}
+                  schema={propSchema as JSONSchema7}
+                  value={(value as Record<string, unknown>)?.[propKey]}
+                  path={`${path}.${propKey}`}
+                  required={effectiveSchema.required?.includes(propKey)}
+                  onChange={onChange}
+                  depth={0}
+                  rootSchema={rootSchema}
+                />
+              ))
+            ) : null}
           </div>
         )}
       </div>
@@ -436,11 +456,12 @@ function DictionaryEntry({
 
   // For primitive schemas, render inline
   return (
-    <div className="mb-2">
+    <div className="py-1.5">
       <div className="flex items-center gap-2">
         {isEditing ? (
-          <input
+          <Input
             type="text"
+            size="sm"
             value={editKey}
             onChange={(e) => setEditKey(e.target.value)}
             onBlur={handleKeySubmit}
@@ -451,12 +472,12 @@ function DictionaryEntry({
                 setIsEditing(false);
               }
             }}
-            className="w-32 px-1 py-0.5 text-sm font-medium border border-blue-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="w-48 font-medium border-primary/50"
             autoFocus
           />
         ) : (
           <span
-            className="w-32 flex-shrink-0 text-sm font-medium text-blue-700 hover:underline cursor-text"
+            className="w-48 flex-shrink-0 text-sm font-medium text-primary hover:underline cursor-text"
             onClick={() => setIsEditing(true)}
             title="Click to rename"
           >
@@ -477,7 +498,7 @@ function DictionaryEntry({
         <button
           type="button"
           onClick={onDelete}
-          className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded flex-shrink-0"
+          className="p-1 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded flex-shrink-0"
           title="Delete entry"
         >
           <Trash2 className="w-3 h-3" />

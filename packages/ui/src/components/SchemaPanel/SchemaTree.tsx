@@ -83,13 +83,13 @@ function SchemaNode({
     <div className="select-none">
       <div
         onClick={handleClick}
-        className={`flex items-center gap-1 py-1 px-2 hover:bg-gray-100 cursor-pointer rounded text-sm ${
+        className={`flex items-center gap-1 py-1 px-2 hover:bg-accent cursor-pointer rounded text-sm ${
           depth === 0 ? 'font-medium' : ''
         }`}
         style={{ paddingLeft: `${depth * 16 + 8}px` }}
       >
         {hasChildren ? (
-          <span className="w-4 h-4 flex items-center justify-center text-gray-400">
+          <span className="w-4 h-4 flex items-center justify-center text-muted-foreground">
             {isExpanded ? (
               <ChevronDown className="w-3 h-3" />
             ) : (
@@ -100,17 +100,17 @@ function SchemaNode({
           <span className="w-4" />
         )}
 
-        <span className="text-gray-800">
+        <span className="text-foreground">
           {title}
           {required && <span className="text-red-500 ml-0.5">*</span>}
         </span>
 
-        <span className="text-gray-400 text-xs ml-auto">{typeLabel}</span>
+        <span className="text-muted-foreground text-xs ml-auto">{typeLabel}</span>
       </div>
 
       {description && isExpanded && (
         <div
-          className="text-xs text-gray-500 py-0.5 px-2"
+          className="text-xs text-muted-foreground py-0.5 px-2"
           style={{ paddingLeft: `${depth * 16 + 28}px` }}
         >
           {description}
@@ -154,7 +154,7 @@ function SchemaNode({
       )}
 
       {isExpanded && (schema.anyOf || schema.oneOf) && (
-        <div className="text-xs text-gray-400 py-1" style={{ paddingLeft: `${(depth + 1) * 16 + 8}px` }}>
+        <div className="text-xs text-muted-foreground py-1" style={{ paddingLeft: `${(depth + 1) * 16 + 8}px` }}>
           One of:
           {(schema.anyOf || schema.oneOf)?.map((variant, i) => (
             <span key={i} className="ml-2">
@@ -173,7 +173,7 @@ export function SchemaTree({ schema, path = '', onFieldClick }: SchemaTreeProps)
 
   if (!rootProperties) {
     return (
-      <div className="p-4 text-sm text-gray-500">
+      <div className="p-4 text-sm text-muted-foreground">
         No properties defined in schema
       </div>
     );

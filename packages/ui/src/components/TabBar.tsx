@@ -33,43 +33,43 @@ export function TabBar({
   };
 
   return (
-    <div className="flex items-center border-b bg-gray-100 min-h-[40px]">
+    <div className="flex items-center border-b border-border bg-muted min-h-[40px]">
       {/* New Tab Dropdown */}
       <div className="relative group">
         <button
-          className="flex items-center gap-1 px-3 py-2 text-sm text-gray-600 hover:bg-gray-200 border-r border-gray-200"
+          className="flex items-center gap-1 px-3 py-2 text-sm text-muted-foreground hover:bg-accent border-r border-border"
           title="New file"
         >
           <Plus className="w-4 h-4" />
           New
           <ChevronDown className="w-3 h-3" />
         </button>
-        <div className="absolute left-0 top-full mt-0 bg-white border border-gray-200 rounded-md shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 min-w-[200px]">
+        <div className="absolute left-0 top-full mt-0 bg-popover border border-border rounded-md shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 min-w-[200px]">
           {schemas.map((schema) => (
             <button
               key={schema.id}
               onClick={() => onNewTab(schema.id)}
-              className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 first:rounded-t-md last:rounded-b-md"
+              className="block w-full text-left px-4 py-2 text-sm text-popover-foreground hover:bg-accent first:rounded-t-md last:rounded-b-md"
             >
               <div className="font-medium">{schema.name}</div>
               {schema.description && (
-                <div className="text-xs text-gray-500 mt-0.5">
+                <div className="text-xs text-muted-foreground mt-0.5">
                   {schema.description}
                 </div>
               )}
             </button>
           ))}
           {schemas.length === 0 && (
-            <div className="px-4 py-2 text-sm text-gray-400">
+            <div className="px-4 py-2 text-sm text-muted-foreground">
               No schemas registered
             </div>
           )}
           {onManageSchemas && (
             <>
-              <div className="border-t border-gray-200 my-1" />
+              <div className="border-t border-border my-1" />
               <button
                 onClick={onManageSchemas}
-                className="flex items-center gap-2 w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 last:rounded-b-md"
+                className="flex items-center gap-2 w-full text-left px-4 py-2 text-sm text-muted-foreground hover:bg-accent last:rounded-b-md"
               >
                 <Settings className="w-4 h-4" />
                 Manage Schemas...
@@ -85,10 +85,10 @@ export function TabBar({
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-2 px-3 py-2 text-sm border-r border-gray-200 min-w-[120px] max-w-[200px] group ${
+            className={`flex items-center gap-2 px-3 py-2 text-sm border-r border-border min-w-[120px] max-w-[200px] group ${
               tab.id === activeTabId && !schemasViewActive
-                ? 'bg-white text-gray-900 border-b-2 border-b-blue-500'
-                : 'text-gray-600 hover:bg-gray-200'
+                ? 'bg-background text-foreground border-b-2 border-b-primary'
+                : 'text-muted-foreground hover:bg-accent'
             }`}
           >
             <span className="truncate flex-1 text-left">
@@ -99,7 +99,7 @@ export function TabBar({
             )}
             <span
               onClick={(e) => handleCloseTab(e, tab.id, tab.isDirty)}
-              className="p-0.5 rounded hover:bg-gray-300 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+              className="p-0.5 rounded hover:bg-accent opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
             >
               <X className="w-3 h-3" />
             </span>
@@ -110,7 +110,7 @@ export function TabBar({
         {schemasViewActive && (
           <button
             onClick={onManageSchemas}
-            className="flex items-center gap-2 px-3 py-2 text-sm border-r border-gray-200 min-w-[120px] max-w-[200px] bg-white text-gray-900 border-b-2 border-b-blue-500"
+            className="flex items-center gap-2 px-3 py-2 text-sm border-r border-border min-w-[120px] max-w-[200px] bg-background text-foreground border-b-2 border-b-primary"
           >
             <Settings className="w-4 h-4" />
             <span className="truncate flex-1 text-left">Schemas</span>
@@ -119,7 +119,7 @@ export function TabBar({
                 e.stopPropagation();
                 onManageSchemas?.();
               }}
-              className="p-0.5 rounded hover:bg-gray-300"
+              className="p-0.5 rounded hover:bg-accent"
             >
               <X className="w-3 h-3" />
             </span>

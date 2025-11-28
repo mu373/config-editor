@@ -4,15 +4,60 @@ import type { JSONSchema7 } from 'json-schema';
 import { SortableArrayField } from './SortableArrayField';
 import { VariantField } from './VariantField';
 import { DictionaryField } from './DictionaryField';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../ui/select';
+import { Input } from '../ui/input';
 
 // Shared component for field descriptions
 export function FieldDescription({ children, noMargin = false }: { children: React.ReactNode; noMargin?: boolean }) {
-  return <p className={`text-xs text-gray-400 ${noMargin ? '' : '-mt-0.5'}`}>{children}</p>;
+  return <p className={`text-xs text-muted-foreground/70 ${noMargin ? '' : 'mt-1'}`}>{children}</p>;
 }
 
 // Shared component for nested children container with left border
 export function ChildrenContainer({ children }: { children: React.ReactNode }) {
-  return <div className="mt-1 border-l-2 border-gray-200 pl-6">{children}</div>;
+  return <div className="mt-1 border-l-2 border-border pl-6">{children}</div>;
+}
+
+// Shared component for field labels with array index styling
+interface FieldLabelProps {
+  name: string;
+  title: string;
+  required?: boolean;
+  summaryLabel?: string | null;
+  className?: string;
+  as?: 'label' | 'span';
+}
+
+export function FieldLabel({ name, title, required, summaryLabel, className = '', as = 'label' }: FieldLabelProps) {
+  const isArrayIndex = /^\[\d+\]$/.test(name);
+
+  const renderContent = () => {
+    if (isArrayIndex && summaryLabel) {
+      return (
+        <>
+          <span className="font-mono text-muted-foreground">{name}</span>
+          <span className="font-medium">: {summaryLabel}</span>
+        </>
+      );
+    }
+    if (isArrayIndex) {
+      return <span className="font-mono text-muted-foreground">{name}</span>;
+    }
+    return title;
+  };
+
+  const Tag = as;
+  return (
+    <Tag className={`text-sm ${isArrayIndex ? '' : 'font-medium'} text-foreground ${className}`}>
+      {renderContent()}
+      {required && <span className="text-red-500 ml-0.5">*</span>}
+    </Tag>
+  );
 }
 
 /**
@@ -191,7 +236,7 @@ export function FormField({
   effectiveSchema = resolveNullableRef(effectiveSchema);
 
   // Use summaryLabel if provided (for array items), otherwise use schema title or name
-  const title = summaryLabel ? `${name}: ${summaryLabel}` : (effectiveSchema.title || name);
+  const title = effectiveSchema.title || name;
   const description = effectiveSchema.description;
 
   // Determine the effective type, handling anyOf/oneOf for nullable types
@@ -264,31 +309,34 @@ export function FormField({
 
   // Handle enum type
   if (effectiveSchema.enum) {
+    const NONE_VALUE = '__none__';
+    const isArrayItem = /^\[\d+\]$/.test(name);
     return (
-      <div className="mb-2">
-        <div className="flex items-start gap-3">
-          <label className="flex-shrink-0 w-32 text-sm font-medium text-gray-700 pt-0.5">
-            {title}
-            {required && <span className="text-red-500 ml-0.5">*</span>}
-          </label>
+      <div className={isArrayItem ? '' : 'py-2'}>
+        <div className={`flex items-center gap-3 ${isArrayItem ? 'h-7' : ''}`}>
+          <FieldLabel name={name} title={title} required={required} summaryLabel={summaryLabel} className={`flex-shrink-0 ${isArrayItem ? '' : 'w-48'}`} />
           <div className="flex-1 min-w-0">
-            <select
-              value={value as string ?? ''}
-              onChange={(e) => onChange(path, e.target.value || (nullable ? null : ''))}
-              className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent"
+            <Select
+              value={(value as string) || (nullable ? NONE_VALUE : undefined)}
+              onValueChange={(val) => onChange(path, val === NONE_VALUE ? null : val)}
             >
-              {nullable && <option value="">-- None --</option>}
-              {effectiveSchema.enum.map((opt) => (
-                <option key={String(opt)} value={String(opt)}>
-                  {String(opt)}
-                </option>
-              ))}
-            </select>
-            {description && (
-              <FieldDescription>{description}</FieldDescription>
-            )}
+              <SelectTrigger size="sm" className={`w-full text-sm ${isArrayItem ? 'h-7' : 'h-8'}`}>
+                <SelectValue placeholder={nullable ? '-- None --' : 'Select...'} />
+              </SelectTrigger>
+              <SelectContent>
+                {nullable && <SelectItem value={NONE_VALUE}>-- None --</SelectItem>}
+                {effectiveSchema.enum.map((opt) => (
+                  <SelectItem key={String(opt)} value={String(opt)}>
+                    {String(opt)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
+        {description && !isArrayItem && (
+          <FieldDescription>{description}</FieldDescription>
+        )}
       </div>
     );
   }
@@ -298,49 +346,46 @@ export function FormField({
     const isDate = effectiveSchema.format === 'date';
     const isDateTime = effectiveSchema.format === 'date-time';
     const inputType = isDate ? 'date' : isDateTime ? 'datetime-local' : 'text';
+    const isArrayItem = /^\[\d+\]$/.test(name);
     return (
-      <div className="mb-2">
-        <div className="flex items-start gap-3">
-          <label className="flex-shrink-0 w-32 text-sm font-medium text-gray-700 pt-0.5">
-            {title}
-            {required && <span className="text-red-500 ml-0.5">*</span>}
-          </label>
+      <div className={isArrayItem ? '' : 'py-2'}>
+        <div className={`flex items-center gap-3 ${isArrayItem ? 'h-7' : ''}`}>
+          <FieldLabel name={name} title={title} required={required} summaryLabel={summaryLabel} className={`flex-shrink-0 ${isArrayItem ? '' : 'w-48'}`} />
           <div className="flex-1 min-w-0">
-            <input
+            <Input
               type={inputType}
+              size="sm"
               value={(value as string) ?? ''}
               onChange={(e) => onChange(path, e.target.value || (nullable ? null : ''))}
               placeholder={effectiveSchema.default as string}
-              className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent"
             />
-            {description && (
-              <FieldDescription>{description}</FieldDescription>
-            )}
           </div>
         </div>
+        {description && !isArrayItem && (
+          <FieldDescription>{description}</FieldDescription>
+        )}
       </div>
     );
   }
 
   // Handle number/integer type
   if (schemaType === 'number' || schemaType === 'integer') {
+    const isArrayItem = /^\[\d+\]$/.test(name);
     return (
-      <div className="mb-2">
-        <div className="flex items-start gap-3">
-          <div className="flex-shrink-0 w-32">
-            <label className="text-sm font-medium text-gray-700">
-              {title}
-              {required && <span className="text-red-500 ml-0.5">*</span>}
-            </label>
-            {(effectiveSchema.minimum !== undefined || effectiveSchema.maximum !== undefined) && (
-              <p className="text-xs text-gray-400 mt-0.5">
+      <div className={isArrayItem ? '' : 'py-2'}>
+        <div className={`flex items-center gap-3 ${isArrayItem ? 'h-7' : ''}`}>
+          <div className={`flex-shrink-0 ${isArrayItem ? '' : 'w-48'}`}>
+            <FieldLabel name={name} title={title} required={required} summaryLabel={summaryLabel} />
+            {(effectiveSchema.minimum !== undefined || effectiveSchema.maximum !== undefined) && !isArrayItem && (
+              <p className="text-xs text-muted-foreground mt-0.5">
                 Range: {effectiveSchema.minimum ?? '-∞'} - {effectiveSchema.maximum ?? '∞'}
               </p>
             )}
           </div>
           <div className="flex-1 min-w-0">
-            <input
+            <Input
               type="number"
+              size="sm"
               value={(value as number) ?? ''}
               onChange={(e) => {
                 const val = e.target.value;
@@ -353,26 +398,23 @@ export function FormField({
               min={effectiveSchema.minimum}
               max={effectiveSchema.maximum}
               step={schemaType === 'integer' ? 1 : 'any'}
-              className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent"
             />
-            {description && (
-              <FieldDescription>{description}</FieldDescription>
-            )}
           </div>
         </div>
+        {description && !isArrayItem && (
+          <FieldDescription>{description}</FieldDescription>
+        )}
       </div>
     );
   }
 
   // Handle boolean type
   if (schemaType === 'boolean') {
+    const isArrayItem = /^\[\d+\]$/.test(name);
     return (
-      <div className="mb-2">
-        <div className="flex items-start gap-3">
-          <label className="flex-shrink-0 w-32 text-sm font-medium text-gray-700 pt-0.5">
-            {title}
-            {required && <span className="text-red-500 ml-0.5">*</span>}
-          </label>
+      <div className={isArrayItem ? '' : 'py-2'}>
+        <div className={`flex items-center gap-3 ${isArrayItem ? 'h-7' : ''}`}>
+          <FieldLabel name={name} title={title} required={required} summaryLabel={summaryLabel} className={`flex-shrink-0 ${isArrayItem ? '' : 'w-48'}`} />
           <div className="flex-1 min-w-0">
             <label className="relative inline-flex items-center cursor-pointer">
               <input
@@ -381,13 +423,13 @@ export function FormField({
                 onChange={(e) => onChange(path, e.target.checked)}
                 className="sr-only peer"
               />
-              <div className="w-8 h-4 bg-gray-200 peer-focus:outline-none peer-focus:ring-1 peer-focus:ring-blue-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-blue-600"></div>
+              <div className="w-8 h-4 bg-input peer-focus:outline-none peer-focus:ring-1 peer-focus:ring-ring rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-background after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-background after:border-border after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-primary"></div>
             </label>
-            {description && (
-              <FieldDescription>{description}</FieldDescription>
-            )}
           </div>
         </div>
+        {description && !isArrayItem && (
+          <FieldDescription>{description}</FieldDescription>
+        )}
       </div>
     );
   }
@@ -432,26 +474,24 @@ export function FormField({
 
     // At depth 0 (root level), children render at full width outside the header row
     // At deeper levels, children render inside the content area (indented)
+    const isArrayItem = /^\[\d+\]$/.test(name);
     if (depth === 0) {
       return (
-        <div className={summaryLabel ? '' : 'mb-2'}>
+        <div className={isArrayItem ? '' : 'py-2'}>
           {/* Header row: label with chevron */}
           <div
-            className="flex items-center gap-1 cursor-pointer h-6"
+            className={`flex items-center gap-1 cursor-pointer ${isArrayItem ? 'h-7' : 'h-6'}`}
             onClick={() => setIsExpanded(!isExpanded)}
           >
-            <span className="text-sm font-medium text-gray-700">
-              {title}
-              {required && <span className="text-red-500 ml-0.5">*</span>}
-            </span>
+            <FieldLabel name={name} title={title} required={required} summaryLabel={summaryLabel} as="span" />
             {isExpanded ? (
-              <ChevronDown className="w-3 h-3 text-gray-400" />
+              <ChevronDown className="w-3 h-3 text-muted-foreground" />
             ) : (
-              <ChevronRight className="w-3 h-3 text-gray-400" />
+              <ChevronRight className="w-3 h-3 text-muted-foreground" />
             )}
           </div>
-          {/* Hide description for array items (when summaryLabel is provided) */}
-          {description && !summaryLabel && (
+          {/* Hide description for array items */}
+          {description && !isArrayItem && (
             <FieldDescription>{description}</FieldDescription>
           )}
 
@@ -480,24 +520,21 @@ export function FormField({
 
     // Deeper levels: children inside content area (indented)
     return (
-      <div className="mb-2">
+      <div className={isArrayItem ? '' : 'py-2'}>
         {/* Header row: label with chevron */}
         <div
-          className="flex items-center gap-1 cursor-pointer"
+          className={`flex items-center gap-1 cursor-pointer ${isArrayItem ? 'h-7' : ''}`}
           onClick={() => setIsExpanded(!isExpanded)}
         >
-          <span className="text-sm font-medium text-gray-700">
-            {title}
-            {required && <span className="text-red-500 ml-0.5">*</span>}
-          </span>
+          <FieldLabel name={name} title={title} required={required} summaryLabel={summaryLabel} as="span" />
           {isExpanded ? (
-            <ChevronDown className="w-3 h-3 text-gray-400" />
+            <ChevronDown className="w-3 h-3 text-muted-foreground" />
           ) : (
-            <ChevronRight className="w-3 h-3 text-gray-400" />
+            <ChevronRight className="w-3 h-3 text-muted-foreground" />
           )}
         </div>
-        {/* Hide description for array items (when summaryLabel is provided) */}
-        {description && !summaryLabel && (
+        {/* Hide description for array items */}
+        {description && !isArrayItem && (
           <FieldDescription>{description}</FieldDescription>
         )}
 
@@ -532,25 +569,23 @@ export function FormField({
         ? JSON.stringify(value, null, 2)
         : String(value);
 
+  const isArrayItem = /^\[\d+\]$/.test(name);
   return (
-    <div className="mb-2">
-      <div className="flex items-start gap-3">
-        <label className="flex-shrink-0 w-32 text-sm font-medium text-gray-700 pt-0.5">
-          {title}
-          {required && <span className="text-red-500 ml-0.5">*</span>}
-        </label>
+    <div className={isArrayItem ? '' : 'py-2'}>
+      <div className={`flex items-center gap-3 ${isArrayItem ? 'h-7' : ''}`}>
+        <FieldLabel name={name} title={title} required={required} summaryLabel={summaryLabel} className={`flex-shrink-0 ${isArrayItem ? '' : 'w-48'}`} />
         <div className="flex-1 min-w-0">
-          <input
+          <Input
             type="text"
+            size="sm"
             value={stringValue}
             onChange={(e) => onChange(path, e.target.value || (nullable ? null : ''))}
-            className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent"
           />
-          {description && (
-            <FieldDescription>{description}</FieldDescription>
-          )}
         </div>
       </div>
+      {description && !isArrayItem && (
+        <FieldDescription>{description}</FieldDescription>
+      )}
     </div>
   );
 }

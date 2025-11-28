@@ -81,12 +81,12 @@ export function EditorLayout({ schemas, onNewTab }: EditorLayoutProps) {
                 onContentChange={handleContentChange}
               />
             </Panel>
-            <PanelResizeHandle className="w-1 bg-gray-200 hover:bg-blue-400 transition-colors cursor-col-resize" />
+            <PanelResizeHandle className="w-1 bg-border hover:bg-ring transition-colors cursor-col-resize" />
           </>
         )}
 
         {isPanelCollapsed && (
-          <div className="h-full flex flex-col border-r bg-white w-10 flex-shrink-0">
+          <div className="h-full flex flex-col border-r border-border bg-background w-10 flex-shrink-0">
             <SchemaPanel
               schema={schema}
               schemaId={activeTab?.schemaId}
