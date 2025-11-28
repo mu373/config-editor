@@ -149,7 +149,9 @@ export default function App() {
 
   const handleNewTab = useCallback(
     (schemaId: string) => {
-      const preset = schemaPresets.find((p) => p.id === schemaId);
+      const preset = schemaPresets.find(
+        (preset: SchemaPreset) => preset.id === schemaId
+      );
       if (!preset) return;
 
       addTab({
