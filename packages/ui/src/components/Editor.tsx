@@ -8,8 +8,9 @@ import { useSettingsStore } from '../store/settingsStore';
 import { registerCustomThemes } from '../lib/monacoThemes';
 import { ToggleGroup, ToggleGroupItem } from './ui/toggle-group';
 import { Button } from './ui/button';
-import { DocumentModel, type Format } from '@config-editor/core';
+import { DocumentModel, type Format, getPathAtPosition } from '@config-editor/core';
 import { useMonacoSync } from '../hooks/useMonacoSync';
+import { useFormNavigation } from '../hooks/useFormNavigation';
 
 interface EditorProps {
   documentModel: DocumentModel | null;
@@ -19,6 +20,7 @@ export function Editor({ documentModel }: EditorProps) {
   const { tabs, activeTabId, setContent, setFormat, markClean } = useEditorStore();
   const { settings } = useSettingsStore();
   const activeTab = tabs.find((t) => t.id === activeTabId);
+  const { navigateToPath } = useFormNavigation();
 
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<Monaco | null>(null);
@@ -66,6 +68,41 @@ export function Editor({ documentModel }: EditorProps) {
     // Register custom themes
     registerCustomThemes(monaco);
   };
+
+  // Cmd/Ctrl+click handler for navigating to form fields
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor || !activeTab) return;
+
+    const disposable = editor.onMouseDown((e) => {
+      // Check for Cmd (Mac) or Ctrl (Windows/Linux)
+      // metaKey is Cmd on Mac, ctrlKey is Ctrl on Windows/Linux
+      const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+      const modifierPressed = isMac ? e.event.metaKey : e.event.ctrlKey;
+      if (!modifierPressed) return;
+
+      // Get position from the mouse event
+      const position = e.target.position;
+      if (!position) return;
+
+      // Get the content and format
+      const content = editor.getValue();
+      const format = activeTab.format;
+
+      // Get the path at the cursor position
+      const path = getPathAtPosition(content, position, format);
+      if (!path) return;
+
+      // Navigate to the form field
+      navigateToPath(path);
+
+      // Prevent default behavior (e.g., go to definition)
+      e.event.preventDefault();
+      e.event.stopPropagation();
+    });
+
+    return () => disposable.dispose();
+  }, [activeTab?.format, navigateToPath]);
 
   // Update schema in monaco-yaml when active tab changes
   useEffect(() => {
