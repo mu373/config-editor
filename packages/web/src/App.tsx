@@ -8,6 +8,14 @@ import {
 } from '@config-editor/ui';
 import type { SchemaPreset } from '@config-editor/core';
 
+interface SampleFile {
+  id: string;
+  name: string;
+  schemaId: string;
+  content: string;
+  format: 'yaml' | 'json';
+}
+
 
 const schemaDefaults: Record<
   string,
@@ -91,7 +99,52 @@ output:
       - "80:80"
 `,
   },
+  'github-workflow': {
+    name: 'GitHub Actions',
+    description: 'GitHub Actions workflow configuration',
+    defaultContent: `name: CI
+on: [push]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+`,
+  },
 };
+
+// Load bundled sample files
+async function loadBundledSamples(): Promise<SampleFile[]> {
+  const modules = import.meta.glob('./samples/*.{yaml,yml,json}', {
+    eager: true,
+    query: '?raw',
+    import: 'default',
+  });
+  const samples: SampleFile[] = [];
+
+  for (const [path, content] of Object.entries(modules)) {
+    const fileName = path.split('/').pop();
+    if (!fileName) continue;
+
+    // Extract schema ID: "docker-compose.sample.yaml" → "docker-compose"
+    const match = fileName.match(/^(.+?)\.sample\.(yaml|yml|json)$/);
+    if (match) {
+      const schemaId = match[1];
+      const format = match[2] === 'json' ? 'json' : 'yaml';
+      const meta = schemaDefaults[schemaId];
+
+      samples.push({
+        id: `${schemaId}-sample`,
+        name: meta?.name ?? schemaId,
+        schemaId,
+        content: content as string,
+        format,
+      });
+    }
+  }
+
+  return samples;
+}
 
 // Load only bundled schemas that actually exist (Vercel build may not include any)
 async function loadBundledSchemas(): Promise<SchemaPreset[]> {
@@ -130,6 +183,7 @@ export default function App() {
   } = useSchemaStore();
   const { hydrateFromStorage: hydrateSettings } = useSettingsStore();
   const [isLoading, setIsLoading] = useState(true);
+  const [samples, setSamples] = useState<SampleFile[]>([]);
 
   // Hydrate schemas and settings on mount
   useEffect(() => {
@@ -138,11 +192,14 @@ export default function App() {
       hydrateFromStorage();
       hydrateSettings();
 
-      // Then load bundled schemas and merge (won't overwrite user schemas)
+      // Then load bundled schemas and samples and merge (won't overwrite user schemas)
       const bundled = await loadBundledSchemas();
+      const bundledSamples = await loadBundledSamples();
+
       if (bundled.length > 0) {
         mergeBundledSchemas(bundled);
       }
+      setSamples(bundledSamples);
 
       setIsLoading(false);
     }
@@ -168,6 +225,21 @@ export default function App() {
     [addTab, schemaPresets]
   );
 
+  const handleOpenSample = useCallback(
+    (sample: SampleFile) => {
+      const schema = schemaPresets.find((p) => p.id === sample.schemaId);
+      addTab({
+        fileName: `${sample.name}.${sample.format === 'json' ? 'json' : 'yaml'}`,
+        content: sample.content,
+        format: sample.format,
+        schema: schema?.schema ?? null,
+        schemaId: sample.schemaId,
+        isDirty: false,
+      });
+    },
+    [addTab, schemaPresets]
+  );
+
   const defaultPreset = schemaPresets[0];
 
   if (isLoading) {
@@ -182,7 +254,9 @@ export default function App() {
     <div className="h-full flex flex-col bg-gray-50">
       <TabBar
         schemas={schemaPresets}
+        samples={samples}
         onNewTab={handleNewTab}
+        onOpenSample={handleOpenSample}
         defaultSchema={defaultPreset?.schema ?? null}
         defaultSchemaId={defaultPreset?.id ?? null}
       />

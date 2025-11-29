@@ -273,7 +273,7 @@ export function SchemaPanel({
             </Panel>
             <PanelResizeHandle className="w-1 bg-border hover:bg-ring transition-colors cursor-col-resize" />
             <Panel defaultSize={70} minSize={50}>
-              <div className="h-full overflow-auto">
+              <div className="h-full overflow-auto [scrollbar-gutter:stable]">
                 <SchemaForm
                   schema={schema}
                   value={formValue}

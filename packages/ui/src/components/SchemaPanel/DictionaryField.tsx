@@ -371,9 +371,61 @@ function DictionaryEntry({
   };
 
   // Resolve $ref if present
-  const resolvedSchema = rootSchema ? resolveRef(schema, rootSchema) : schema;
-  const effectiveSchema = { ...resolvedSchema, ...schema };
+  let resolvedSchema = rootSchema ? resolveRef(schema, rootSchema) : schema;
+  let effectiveSchema = { ...resolvedSchema, ...schema };
   delete effectiveSchema.$ref;
+
+  // Resolve oneOf/anyOf with $ref (similar to FormField)
+  const variants = effectiveSchema.anyOf || effectiveSchema.oneOf;
+  if (variants && rootSchema) {
+    const nonNullVariants: JSONSchema7[] = [];
+    for (const v of variants) {
+      const variant = v as JSONSchema7;
+      if (variant.$ref) {
+        const resolved = resolveRef(variant, rootSchema);
+        if (resolved.type !== 'null') {
+          nonNullVariants.push(resolved);
+        }
+      } else if (variant.type !== 'null') {
+        nonNullVariants.push(variant);
+      }
+    }
+    // If there's exactly one non-null variant, use it
+    if (nonNullVariants.length === 1) {
+      effectiveSchema = {
+        ...nonNullVariants[0],
+        title: effectiveSchema.title || nonNullVariants[0].title,
+        description: effectiveSchema.description || nonNullVariants[0].description,
+      };
+    } else if (nonNullVariants.length > 1) {
+      // Multiple variants - prefer complex types (object/array) over primitives
+      const objectVariants = nonNullVariants.filter(v => v.type === 'object' || v.properties || v.additionalProperties || v.patternProperties);
+      const arrayVariants = nonNullVariants.filter(v => v.type === 'array' || v.items);
+
+      if (objectVariants.length === 1) {
+        // One object variant and other primitive variants - use the object
+        effectiveSchema = {
+          ...objectVariants[0],
+          title: effectiveSchema.title || objectVariants[0].title,
+          description: effectiveSchema.description || objectVariants[0].description,
+        };
+      } else if (objectVariants.length > 1) {
+        // Multiple object variants - use the first one
+        effectiveSchema = {
+          ...objectVariants[0],
+          title: effectiveSchema.title || objectVariants[0].title,
+          description: effectiveSchema.description || objectVariants[0].description,
+        };
+      } else if (arrayVariants.length >= 1) {
+        // Array variant(s) present - use the first one
+        effectiveSchema = {
+          ...arrayVariants[0],
+          title: effectiveSchema.title || arrayVariants[0].title,
+          description: effectiveSchema.description || arrayVariants[0].description,
+        };
+      }
+    }
+  }
 
   // Check if the schema is an object type (has properties or is type: object)
   const isObjectSchema = effectiveSchema.type === 'object' || effectiveSchema.properties;
@@ -381,9 +433,10 @@ function DictionaryEntry({
   const isArraySchema = effectiveSchema.type === 'array' && effectiveSchema.items;
 
   if (isObjectSchema || isArraySchema) {
-    // Render as collapsible section with nested form fields
+    // Render as collapsible section with nested form fields (always vertical)
     return (
       <div data-field-path={path} className="py-1.5">
+        {/* Header row: chevron, key label, delete button */}
         <div className="flex items-center gap-1">
           <div
             className="flex items-center gap-1 cursor-pointer flex-1"
@@ -428,7 +481,8 @@ function DictionaryEntry({
           <ConfirmDeleteButton onDelete={onDelete} size="sm" />
         </div>
 
-        {isExpanded && (
+        {/* Nested content on new line below */}
+        {isExpanded && (isArraySchema || (effectiveSchema.properties && Object.keys(effectiveSchema.properties).length > 0)) && (
           <ChildrenContainer>
             {isArraySchema ? (
               // Render array directly with hideHeader since we already show the key in the header
@@ -442,9 +496,9 @@ function DictionaryEntry({
                 rootSchema={rootSchema}
                 hideHeader
               />
-            ) : effectiveSchema.properties ? (
+            ) : (
               // Render object properties
-              Object.entries(effectiveSchema.properties).map(([propKey, propSchema]) => (
+              Object.entries(effectiveSchema.properties!).map(([propKey, propSchema]) => (
                 <FormField
                   key={propKey}
                   name={propKey}
@@ -457,7 +511,7 @@ function DictionaryEntry({
                   rootSchema={rootSchema}
                 />
               ))
-            ) : null}
+            )}
           </ChildrenContainer>
         )}
       </div>
@@ -496,7 +550,7 @@ function DictionaryEntry({
         )}
         <div className="flex-1">
           <FormField
-            name={entryKey}
+            name=""
             schema={schema}
             value={value}
             path={path}

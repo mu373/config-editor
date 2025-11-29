@@ -334,14 +334,92 @@ export function FormField({
   if (variants) {
     const nonNullVariants = variants.filter((v) => {
       const variant = v as JSONSchema7;
+      // Skip variants that are just validation constraints (only have 'required', no type/properties/$ref)
+      const isValidationOnly = !variant.type && !variant.properties && !variant.$ref && !variant.items;
+      if (isValidationOnly) return false;
+
       if (!variant.type) return true;
       if (Array.isArray(variant.type)) {
         return variant.type.some((t) => t !== 'null');
       }
       return variant.type !== 'null';
     });
-    // If there are multiple non-null variants, use VariantField
-    if (nonNullVariants.length > 1) {
+
+    // If there are multiple non-null variants but we have actual data,
+    // try to auto-detect which variant matches the data
+    if (nonNullVariants.length > 1 && value !== null && value !== undefined) {
+      // Check if value matches array type
+      if (Array.isArray(value)) {
+        const arrayVariant = nonNullVariants.find((v) => {
+          const variant = v as JSONSchema7;
+          return variant.type === 'array' || variant.items;
+        });
+        // If we found an array variant, treat it as the only variant (no dropdown)
+        if (arrayVariant) {
+          // Replace effectiveSchema with the array variant so type detection works
+          effectiveSchema = arrayVariant as JSONSchema7;
+          // Don't use VariantField, let it fall through to array handler below
+        } else {
+          // Multiple variants but data is array and no array variant - use VariantField
+          return (
+            <VariantField
+              name={name}
+              schema={effectiveSchema}
+              value={value}
+              path={path}
+              required={required}
+              onChange={onChange}
+              depth={depth}
+              rootSchema={rootSchema}
+              globalExpandLevel={globalExpandLevel}
+            />
+          );
+        }
+      } else if (typeof value === 'object') {
+        // Check if value matches object type
+        const objectVariant = nonNullVariants.find((v) => {
+          const variant = v as JSONSchema7;
+          return variant.type === 'object' || variant.properties || variant.additionalProperties;
+        });
+        // If we found an object variant, treat it as the only variant (no dropdown)
+        if (objectVariant) {
+          // Replace effectiveSchema with the object variant so type detection works
+          effectiveSchema = objectVariant as JSONSchema7;
+          // Don't use VariantField, let it fall through to object handler below
+        } else {
+          // Multiple variants but data is object and no object variant - use VariantField
+          return (
+            <VariantField
+              name={name}
+              schema={effectiveSchema}
+              value={value}
+              path={path}
+              required={required}
+              onChange={onChange}
+              depth={depth}
+              rootSchema={rootSchema}
+              globalExpandLevel={globalExpandLevel}
+            />
+          );
+        }
+      } else {
+        // Primitive value with multiple variants - use VariantField
+        return (
+          <VariantField
+            name={name}
+            schema={effectiveSchema}
+            value={value}
+            path={path}
+            required={required}
+            onChange={onChange}
+            depth={depth}
+            rootSchema={rootSchema}
+            globalExpandLevel={globalExpandLevel}
+          />
+        );
+      }
+    } else if (nonNullVariants.length > 1) {
+      // Multiple variants and no data to auto-detect - use VariantField
       return (
         <VariantField
           name={name}
@@ -363,7 +441,7 @@ export function FormField({
     const NONE_VALUE = '__none__';
     const isArrayItem = /^\[\d+\]$/.test(name);
     return (
-      <div data-field-path={path} className={isArrayItem ? '' : 'py-2'}>
+      <div data-field-path={path} className={isArrayItem ? '' : 'py-4'}>
         <div className={`flex items-center gap-3 ${isArrayItem ? 'h-7' : ''}`}>
           <FieldLabel name={name} title={title} required={required} summaryLabel={summaryLabel} className={`flex-shrink-0 ${isArrayItem ? '' : 'w-48'}`} />
           <div className="flex-1 min-w-0">
@@ -449,7 +527,7 @@ export function FormField({
     }
 
     return (
-      <div data-field-path={path} className={isArrayItem ? '' : 'py-2'}>
+      <div data-field-path={path} className={isArrayItem ? '' : 'py-4'}>
         <div className={`flex items-center gap-3 ${isArrayItem ? 'h-7' : ''}`}>
           <FieldLabel name={name} title={title} required={required} summaryLabel={summaryLabel} className={`flex-shrink-0 ${isArrayItem ? '' : 'w-48'}`} />
           <div className="flex-1 min-w-0">
@@ -476,7 +554,7 @@ export function FormField({
     const stringValue = value === null || value === undefined ? '' : String(value);
 
     return (
-      <div data-field-path={path} className={isArrayItem ? '' : 'py-2'}>
+      <div data-field-path={path} className={isArrayItem ? '' : 'py-4'}>
         <div className={`flex items-center gap-3 ${isArrayItem ? 'h-7' : ''}`}>
           <div className={`flex-shrink-0 ${isArrayItem ? '' : 'w-48'}`}>
             <FieldLabel name={name} title={title} required={required} summaryLabel={summaryLabel} />
@@ -518,7 +596,7 @@ export function FormField({
   if (schemaType === 'boolean') {
     const isArrayItem = /^\[\d+\]$/.test(name);
     return (
-      <div data-field-path={path} className={isArrayItem ? '' : 'py-2'}>
+      <div data-field-path={path} className={isArrayItem ? '' : 'py-4'}>
         <div className={`flex items-center gap-3 ${isArrayItem ? 'h-7' : ''}`}>
           <FieldLabel name={name} title={title} required={required} summaryLabel={summaryLabel} className={`flex-shrink-0 ${isArrayItem ? '' : 'w-48'}`} />
           <div className="flex-1 min-w-0">
@@ -588,7 +666,7 @@ export function FormField({
     const isArrayItem = /^\[\d+\]$/.test(name);
     if (depth === 0) {
       return (
-        <div data-field-path={path} className={isArrayItem ? '' : 'py-2'}>
+        <div data-field-path={path} className={isArrayItem ? '' : 'py-4'}>
           {/* Header row: label with chevron */}
           <div
             className={`flex items-center gap-1 cursor-pointer ${isArrayItem ? 'h-7' : 'h-6'}`}
@@ -631,7 +709,7 @@ export function FormField({
 
     // Deeper levels: children inside content area (indented)
     return (
-      <div data-field-path={path} className={isArrayItem ? '' : 'py-2'}>
+      <div data-field-path={path} className={isArrayItem ? '' : 'py-4'}>
         {/* Header row: label with chevron */}
         <div
           className={`flex items-center gap-1 cursor-pointer ${isArrayItem ? 'h-7' : ''}`}
@@ -660,7 +738,7 @@ export function FormField({
                 path={`${path}.${key}`}
                 required={effectiveSchema.required?.includes(key)}
                 onChange={onChange}
-                depth={0}
+                depth={depth + 1}
                 rootSchema={rootSchema}
                 globalExpandLevel={globalExpandLevel}
                               />
@@ -682,7 +760,7 @@ export function FormField({
 
   const isArrayItem = /^\[\d+\]$/.test(name);
   return (
-    <div data-field-path={path} className={isArrayItem ? '' : 'py-2'}>
+    <div data-field-path={path} className={isArrayItem ? '' : 'py-4'}>
       <div className={`flex items-center gap-3 ${isArrayItem ? 'h-7' : ''}`}>
         <FieldLabel name={name} title={title} required={required} summaryLabel={summaryLabel} className={`flex-shrink-0 ${isArrayItem ? '' : 'w-48'}`} />
         <div className="flex-1 min-w-0">

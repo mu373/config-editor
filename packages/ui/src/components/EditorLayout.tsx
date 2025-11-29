@@ -62,7 +62,7 @@ export function EditorLayout({ schemas, onNewTab }: EditorLayoutProps) {
         <Panel
           defaultSize={30}
           minSize={15}
-          maxSize={50}
+          maxSize={70}
         >
           <SchemaPanel
             schema={schema}
@@ -75,7 +75,7 @@ export function EditorLayout({ schemas, onNewTab }: EditorLayoutProps) {
           />
         </Panel>
         <PanelResizeHandle className="w-1 bg-border hover:bg-ring transition-colors cursor-col-resize" />
-        <Panel defaultSize={70} minSize={50}>
+        <Panel defaultSize={70} minSize={30}>
           <Editor />
         </Panel>
       </PanelGroup>

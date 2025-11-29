@@ -297,28 +297,24 @@ export function SortableArrayField({
   if (hideHeader) {
     return (
       <div>
-        <div className="flex items-center gap-2 mb-1">
-          <span className="text-xs text-muted-foreground">({items.length} items)</span>
-          {items.length > 0 && itemsAreObjects && (
-            <>
-              <span className="text-border">|</span>
-              <button
-                type="button"
-                onClick={handleCollapseAll}
-                className="text-xs text-muted-foreground hover:text-foreground"
-              >
-                Collapse
-              </button>
-              <button
-                type="button"
-                onClick={handleExpandAll}
-                className="text-xs text-muted-foreground hover:text-foreground"
-              >
-                Expand
-              </button>
-            </>
-          )}
-        </div>
+        {items.length > 0 && itemsAreObjects && (
+          <div className="flex items-center gap-2 mb-1">
+            <button
+              type="button"
+              onClick={handleCollapseAll}
+              className="text-xs text-muted-foreground hover:text-foreground"
+            >
+              Collapse
+            </button>
+            <button
+              type="button"
+              onClick={handleExpandAll}
+              className="text-xs text-muted-foreground hover:text-foreground"
+            >
+              Expand
+            </button>
+          </div>
+        )}
 
         <DndContext
           sensors={sensors}

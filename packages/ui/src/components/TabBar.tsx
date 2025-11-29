@@ -86,16 +86,28 @@ function SortableTab({ id, isActive, onSelect, onClose, icon, label, isDirty }: 
   );
 }
 
+interface SampleFile {
+  id: string;
+  name: string;
+  schemaId: string;
+  content: string;
+  format: 'yaml' | 'json';
+}
+
 interface TabBarProps {
   schemas: SchemaPreset[];
+  samples: SampleFile[];
   onNewTab: (schemaId: string) => void;
+  onOpenSample: (sample: SampleFile) => void;
   defaultSchema?: JSONSchema | null;
   defaultSchemaId?: string | null;
 }
 
 export function TabBar({
   schemas,
+  samples,
   onNewTab,
+  onOpenSample,
   defaultSchema,
   defaultSchemaId,
 }: TabBarProps) {
@@ -231,6 +243,21 @@ export function TabBar({
                 ))}
                 {schemas.length === 0 && (
                   <MenubarItem disabled>No schemas registered</MenubarItem>
+                )}
+                {samples.length > 0 && (
+                  <>
+                    <MenubarSeparator />
+                    <MenubarSub>
+                      <MenubarSubTrigger>Samples</MenubarSubTrigger>
+                      <MenubarSubContent>
+                        {samples.map((sample) => (
+                          <MenubarItem key={sample.id} onClick={() => onOpenSample(sample)}>
+                            {sample.name}
+                          </MenubarItem>
+                        ))}
+                      </MenubarSubContent>
+                    </MenubarSub>
+                  </>
                 )}
               </MenubarSubContent>
             </MenubarSub>

@@ -52,7 +52,7 @@ export function SchemaTreeSidebar({ schema, value, onNavigate }: SchemaTreeSideb
       </div>
 
       {/* Tree content */}
-      <div className="flex-1 overflow-auto py-1">
+      <div className="flex-1 overflow-auto py-1 [scrollbar-gutter:stable]">
         {displayNodes.length === 0 ? (
           <div className="px-3 py-4 text-xs text-muted-foreground text-center">
             {showPopulatedOnly

@@ -41,27 +41,48 @@ function resolveNullableRef(schema: JSONSchema7, rootSchema: JSONSchema7): JSONS
   const variants = schema.anyOf || schema.oneOf;
   if (!variants) return schema;
 
-  // Find non-null variant (which may have a $ref)
-  const nonNullVariant = (variants as JSONSchema7[]).find((v) => v.type !== 'null');
-  if (!nonNullVariant) return schema;
+  // Find all non-null variants (which may have $refs)
+  const nonNullVariants: JSONSchema7[] = [];
+  for (const v of variants as JSONSchema7[]) {
+    if (v.type !== 'null') {
+      // Resolve $ref if present
+      if (v.$ref) {
+        const resolved = resolveRef(v, rootSchema);
+        if (resolved.type !== 'null') {
+          nonNullVariants.push(resolved);
+        }
+      } else {
+        nonNullVariants.push(v);
+      }
+    }
+  }
 
-  // If the non-null variant is a $ref, resolve it
-  if (nonNullVariant.$ref) {
-    const resolved = resolveRef(nonNullVariant, rootSchema);
-    // Merge parent's title/description with resolved schema
+  if (nonNullVariants.length === 0) return schema;
+
+  // If there's exactly one non-null variant, use it
+  if (nonNullVariants.length === 1) {
     return {
-      ...resolved,
-      title: schema.title || resolved.title,
-      description: schema.description || resolved.description,
+      ...nonNullVariants[0],
+      title: schema.title || nonNullVariants[0].title,
+      description: schema.description || nonNullVariants[0].description,
     };
   }
 
-  // If variant has inline properties, return it
-  if (nonNullVariant.properties || nonNullVariant.type) {
+  // Multiple variants - prefer object types over primitives
+  const objectVariants = nonNullVariants.filter(v => v.type === 'object' || v.properties || v.additionalProperties || v.patternProperties);
+  if (objectVariants.length === 1) {
+    // One object variant and other primitive variants - use the object
     return {
-      ...nonNullVariant,
-      title: schema.title || nonNullVariant.title,
-      description: schema.description || nonNullVariant.description,
+      ...objectVariants[0],
+      title: schema.title || objectVariants[0].title,
+      description: schema.description || objectVariants[0].description,
+    };
+  } else if (objectVariants.length > 1) {
+    // Multiple object variants - use the first one
+    return {
+      ...objectVariants[0],
+      title: schema.title || objectVariants[0].title,
+      description: schema.description || objectVariants[0].description,
     };
   }
 
@@ -338,7 +359,8 @@ function buildDictionaryChildren(
   for (const key of Object.keys(value || {})) {
     const path = `${parentPath}.${key}`;
     const itemValue = value[key];
-    const resolvedItem = resolveRef(valueSchema, rootSchema);
+    let resolvedItem = resolveRef(valueSchema, rootSchema);
+    resolvedItem = resolveNullableRef(resolvedItem, rootSchema);
     const itemType = getSchemaType(resolvedItem, rootSchema);
 
     const node: TreeNode = {
@@ -352,12 +374,16 @@ function buildDictionaryChildren(
     };
 
     // Build children for nested objects
-    if (itemType === 'object' && typeof itemValue === 'object' && itemValue !== null) {
+    // Note: itemValue can be null if schema allows it (e.g., "type": ["object", "null"])
+    // In this case, we still want to show the object's structure if it has properties
+    if (itemType === 'object') {
+      const valueAsObject = (itemValue !== null && typeof itemValue === 'object') ? itemValue as Record<string, unknown> : {};
+
       if (isDictionary(resolvedItem, rootSchema)) {
         node.type = 'dictionary';
         node.children = buildDictionaryChildren(
           resolvedItem,
-          itemValue as Record<string, unknown>,
+          valueAsObject,
           rootSchema,
           path,
           visitedRefs
@@ -365,7 +391,7 @@ function buildDictionaryChildren(
       } else {
         node.children = buildTreeFromSchema(
           resolvedItem,
-          itemValue as Record<string, unknown>,
+          valueAsObject,
           rootSchema,
           path,
           new Set(resolvedItem.required || []),
@@ -425,12 +451,16 @@ function buildArrayChildren(
     };
 
     // Build children for nested objects
-    if (itemType === 'object' && typeof itemValue === 'object' && itemValue !== null) {
+    // Note: itemValue can be null if schema allows it (e.g., "type": ["object", "null"])
+    // In this case, we still want to show the object's structure if it has properties
+    if (itemType === 'object') {
+      const valueAsObject = (itemValue !== null && typeof itemValue === 'object') ? itemValue as Record<string, unknown> : {};
+
       if (isDictionary(resolvedItems, rootSchema)) {
         node.type = 'dictionary';
         node.children = buildDictionaryChildren(
           resolvedItems,
-          itemValue as Record<string, unknown>,
+          valueAsObject,
           rootSchema,
           path,
           visitedRefs
@@ -438,7 +468,7 @@ function buildArrayChildren(
       } else {
         node.children = buildTreeFromSchema(
           resolvedItems,
-          itemValue as Record<string, unknown>,
+          valueAsObject,
           rootSchema,
           path,
           new Set(resolvedItems.required || []),
