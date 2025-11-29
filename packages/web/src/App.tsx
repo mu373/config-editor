@@ -220,6 +220,40 @@ export default function App() {
     initSchemas();
   }, [hydrateFromStorage, hydrateSettings, mergeBundledSchemas]);
 
+  const handleNewTab = useCallback(
+    (schemaId: string) => {
+      const preset = schemaPresets.find(
+        (preset: SchemaPreset) => preset.id === schemaId
+      );
+      if (!preset) return;
+
+      addTab({
+        fileName: null,
+        content: preset.defaultContent || '',
+        format: 'yaml',
+        schema: preset.schema,
+        schemaId: preset.id,
+        isDirty: false,
+      });
+    },
+    [addTab, schemaPresets]
+  );
+
+  const handleOpenSample = useCallback(
+    (sample: SampleFile) => {
+      const schema = schemaPresets.find((p) => p.id === sample.schemaId);
+      addTab({
+        fileName: `${sample.name}.${sample.format === 'json' ? 'json' : 'yaml'}`,
+        content: sample.content,
+        format: sample.format,
+        schema: schema?.schema ?? null,
+        schemaId: sample.schemaId,
+        isDirty: false,
+      });
+    },
+    [addTab, schemaPresets]
+  );
+
   // Handle URL query parameters
   useEffect(() => {
     if (isLoading) return;
@@ -227,7 +261,20 @@ export default function App() {
     const params = new URLSearchParams(window.location.search);
     const fileUrl = params.get('fileUrl');
     const schemaName = params.get('schemaName');
+    const openSample = params.get('openSample');
 
+    // Handle openSample parameter
+    if (openSample) {
+      const sample = samples.find((s) => s.schemaId === openSample);
+      if (sample) {
+        handleOpenSample(sample);
+        // Clear query parameters after loading
+        window.history.replaceState({}, '', window.location.pathname);
+        return;
+      }
+    }
+
+    // Handle fileUrl parameter
     if (!fileUrl) return;
 
     async function loadFromUrlParams(url: string) {
@@ -264,41 +311,7 @@ export default function App() {
     }
 
     loadFromUrlParams(fileUrl);
-  }, [isLoading, addTab, schemaPresets]);
-
-  const handleNewTab = useCallback(
-    (schemaId: string) => {
-      const preset = schemaPresets.find(
-        (preset: SchemaPreset) => preset.id === schemaId
-      );
-      if (!preset) return;
-
-      addTab({
-        fileName: null,
-        content: preset.defaultContent || '',
-        format: 'yaml',
-        schema: preset.schema,
-        schemaId: preset.id,
-        isDirty: false,
-      });
-    },
-    [addTab, schemaPresets]
-  );
-
-  const handleOpenSample = useCallback(
-    (sample: SampleFile) => {
-      const schema = schemaPresets.find((p) => p.id === sample.schemaId);
-      addTab({
-        fileName: `${sample.name}.${sample.format === 'json' ? 'json' : 'yaml'}`,
-        content: sample.content,
-        format: sample.format,
-        schema: schema?.schema ?? null,
-        schemaId: sample.schemaId,
-        isDirty: false,
-      });
-    },
-    [addTab, schemaPresets]
-  );
+  }, [isLoading, addTab, schemaPresets, samples, handleOpenSample]);
 
   const defaultPreset = schemaPresets[0];
 

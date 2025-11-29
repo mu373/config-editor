@@ -27,6 +27,13 @@ Use **config-editor** whenever you want to edit **JSON/YAML config** files and b
 - **Scientific workflows and robotics**: Snakemake `config.yaml`, CWL workflow/input files, ROS/ROS 2 parameter files, and similar structured configs
 - **Mixed expert / non-expert editing**: experts use raw Monaco editing while collaborators use a safer form-based GUI backed by the same schema
 
+## Samples
+
+Try out the editor with bundled sample configurations:
+
+- [GitHub Actions Workflow](https://config-editor.vercel.app/?openSample=github-workflow)
+- [Docker Compose](https://config-editor.vercel.app/?openSample=docker-compose)
+
 
 ## Project Structure
 
