@@ -7,6 +7,7 @@ import {
   useSettingsStore,
 } from '@config-editor/ui';
 import type { SchemaPreset } from '@config-editor/core';
+import { detectFormat } from '@config-editor/core';
 
 interface SampleFile {
   id: string;
@@ -174,6 +175,19 @@ async function loadBundledSchemas(): Promise<SchemaPreset[]> {
   return schemas;
 }
 
+// Convert GitHub URLs to raw content URLs
+function convertGitHubUrlToRaw(url: string): string {
+  const githubBlobPattern = /^https?:\/\/github\.com\/([^/]+)\/([^/]+)\/blob\/([^/]+)\/(.+)$/;
+  const match = url.match(githubBlobPattern);
+
+  if (match) {
+    const [, user, repo, branch, path] = match;
+    return `https://raw.githubusercontent.com/${user}/${repo}/refs/heads/${branch}/${path}`;
+  }
+
+  return url;
+}
+
 export default function App() {
   const { addTab } = useEditorStore();
   const {
@@ -205,6 +219,52 @@ export default function App() {
     }
     initSchemas();
   }, [hydrateFromStorage, hydrateSettings, mergeBundledSchemas]);
+
+  // Handle URL query parameters
+  useEffect(() => {
+    if (isLoading) return;
+
+    const params = new URLSearchParams(window.location.search);
+    const fileUrl = params.get('fileUrl');
+    const schemaName = params.get('schemaName');
+
+    if (!fileUrl) return;
+
+    async function loadFromUrlParams() {
+      try {
+        const rawUrl = convertGitHubUrlToRaw(fileUrl);
+        const response = await fetch(rawUrl);
+        if (!response.ok) {
+          console.error(`Failed to fetch: ${response.status} ${response.statusText}`);
+          return;
+        }
+
+        const text = await response.text();
+        const detected = detectFormat(text);
+        const fileName = fileUrl.split('/').pop() || 'untitled';
+
+        const selectedSchema = schemaName
+          ? schemaPresets.find((s) => s.id === schemaName)
+          : null;
+
+        addTab({
+          fileName,
+          content: text,
+          format: detected,
+          schema: selectedSchema?.schema ?? null,
+          schemaId: selectedSchema?.id ?? null,
+          isDirty: false,
+        });
+
+        // Clear query parameters after loading
+        window.history.replaceState({}, '', window.location.pathname);
+      } catch (error) {
+        console.error('Failed to load file from URL:', error);
+      }
+    }
+
+    loadFromUrlParams();
+  }, [isLoading, addTab, schemaPresets]);
 
   const handleNewTab = useCallback(
     (schemaId: string) => {
