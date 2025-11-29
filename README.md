@@ -1,8 +1,10 @@
 # config-editor
 
-A JSON Schema-aware YAML/JSON editor featuring dual editing modes: raw text and form-based GUI.
-
+A JSON Schema-aware YAML/JSON editor featuring dual editing modes: raw text and form-based GUI.  
 Available at: https://config-editor.vercel.app/
+
+<img width="1944" height="1186" alt="image" src="https://github.com/user-attachments/assets/7b1dac1a-846e-4255-9ef9-3d9ff6795fdb" />
+
 
 ## Features
 
