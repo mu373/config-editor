@@ -17,9 +17,11 @@ import type { JSONSchema7 } from 'json-schema';
  */
 export function resolveRef(
   schema: JSONSchema7,
-  rootSchema: JSONSchema7
+  rootSchema: JSONSchema7,
+  maxDepth: number = 10
 ): JSONSchema7 {
   if (!schema.$ref) return schema;
+  if (maxDepth <= 0) return schema; // Prevent infinite loops
 
   const segments = schema.$ref.replace(/^#\//, '').split('/');
   let current: any = rootSchema;
@@ -31,7 +33,20 @@ export function resolveRef(
     }
   }
 
-  return current as JSONSchema7;
+  let resolved = current as JSONSchema7;
+
+  // Recursively resolve if the result also has a $ref
+  if (resolved.$ref) {
+    const deepResolved = resolveRef(resolved, rootSchema, maxDepth - 1);
+    // Merge: keep metadata from intermediate schema, type info from deep resolved
+    resolved = {
+      ...deepResolved,
+      title: resolved.title || deepResolved.title,
+      description: resolved.description || deepResolved.description,
+    };
+  }
+
+  return resolved;
 }
 
 /**

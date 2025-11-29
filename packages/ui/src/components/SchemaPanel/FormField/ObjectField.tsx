@@ -42,6 +42,7 @@ export const ObjectField = memo(function ObjectField({
   const objValue = (value as Record<string, unknown>) ?? {};
   const isArrayItem = /^\[\d+\]$/.test(name);
 
+
   // At depth 0 (root level), children render at full width outside the header row
   if (depth === 0) {
     return (

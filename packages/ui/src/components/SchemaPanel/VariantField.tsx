@@ -9,6 +9,8 @@ import {
   SelectValue,
 } from '../ui/select';
 import { Input } from '../ui/input';
+import { Plus, Trash2 } from 'lucide-react';
+import { getDefaultValue } from '@config-editor/core';
 
 interface VariantFieldProps {
   name: string;
@@ -81,7 +83,7 @@ function getVariantLabel(schema: JSONSchema7, resolvedSchema: JSONSchema7): stri
   return String(type || 'Unknown');
 }
 
-function getDefaultValue(schema: JSONSchema7): unknown {
+function getDefaultValueForType(schema: JSONSchema7): unknown {
   if (schema.default !== undefined) return schema.default;
   if (schema.type === 'null') return null;
   if (schema.type === 'string') return '';
@@ -90,6 +92,77 @@ function getDefaultValue(schema: JSONSchema7): unknown {
   if (schema.type === 'array') return [];
   if (schema.type === 'object') return {};
   return null;
+}
+
+/**
+ * Merge allOf schemas into a single effective schema.
+ * This is needed for schemas like GitHub Actions push/pull_request that use
+ * allOf to combine object properties with validation constraints.
+ */
+function mergeAllOf(schema: JSONSchema7): JSONSchema7 {
+  if (!schema.allOf || !Array.isArray(schema.allOf)) {
+    return schema;
+  }
+
+  let mergedProperties: Record<string, JSONSchema7> = {};
+  let mergedRequired: string[] = [];
+  let mergedType: JSONSchema7['type'];
+
+  for (const subSchema of schema.allOf) {
+    const sub = subSchema as JSONSchema7;
+    // Merge properties
+    if (sub.properties) {
+      Object.entries(sub.properties).forEach(([key, val]) => {
+        if (typeof val === 'object') {
+          mergedProperties[key] = val as JSONSchema7;
+        }
+      });
+    }
+    // Merge required
+    if (sub.required) {
+      mergedRequired = [...mergedRequired, ...sub.required];
+    }
+    // Take type from first subschema that has it
+    if (sub.type && !mergedType) {
+      mergedType = sub.type;
+    }
+  }
+
+  return {
+    ...schema,
+    properties: Object.keys(mergedProperties).length > 0 ? mergedProperties : schema.properties,
+    required: mergedRequired.length > 0 ? mergedRequired : schema.required,
+    type: mergedType || schema.type
+  };
+}
+
+interface OptionalFieldProps {
+  name: string;
+  schema: JSONSchema7;
+  rootSchema?: JSONSchema7;
+  onAdd: () => void;
+}
+
+function OptionalField({ name, schema, rootSchema, onAdd }: OptionalFieldProps) {
+  const resolved = rootSchema ? resolveRef(schema, rootSchema) : schema;
+  const title = resolved.title || schema.title || name;
+  const description = resolved.description || schema.description;
+
+  return (
+    <button
+      type="button"
+      onClick={onAdd}
+      className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors group"
+    >
+      <Plus className="w-4 h-4 text-muted-foreground group-hover:text-primary" />
+      <div className="flex-1">
+        <span className="font-medium">{title}</span>
+        {description && (
+          <span className="text-xs text-muted-foreground/70 ml-2">{description}</span>
+        )}
+      </div>
+    </button>
+  );
 }
 
 function determineCurrentVariant(
@@ -151,7 +224,9 @@ export function VariantField({
     const variantSchemas = schema.anyOf || schema.oneOf || [];
     return variantSchemas.map((variantSchema, index) => {
       const s = variantSchema as JSONSchema7;
-      const resolved = rootSchema ? resolveRef(s, rootSchema) : s;
+      const refResolved = rootSchema ? resolveRef(s, rootSchema) : s;
+      // Merge allOf schemas to get properties from composed schemas
+      const resolved = mergeAllOf(refResolved);
       const isNull = resolved.type === 'null' || s.type === 'null';
       return {
         index,
@@ -196,7 +271,7 @@ export function VariantField({
         onChange(path, null);
       } else {
         // Create default value for new variant type
-        const defaultVal = getDefaultValue(newVariant.resolvedSchema);
+        const defaultVal = getDefaultValueForType(newVariant.resolvedSchema);
         onChange(path, defaultVal);
       }
     },
@@ -352,16 +427,108 @@ export function VariantField({
         {/* Render the current variant's form field at full width (only for non-primitive types) */}
         {currentVariant && !currentVariant.isNull && !currentIsPrimitive && (
           <ChildrenContainer>
-            <FormField
-              name=""
-              schema={currentVariant.resolvedSchema}
-              value={value}
-              path={path}
-              onChange={onChange}
-              depth={1}
-              rootSchema={rootSchema}
-              globalExpandLevel={globalExpandLevel}
+            {currentVariant.resolvedSchema.properties && Object.keys(currentVariant.resolvedSchema.properties).length > 0 ? (
+              // For objects with properties, render like SchemaForm (present + optional fields)
+              (() => {
+                const objValue = (value as Record<string, unknown>) ?? {};
+                const properties = currentVariant.resolvedSchema.properties;
+                const requiredSet = new Set(currentVariant.resolvedSchema.required || []);
+
+                // Separate into present and optional fields
+                const presentFields: Array<[string, JSONSchema7]> = [];
+                const optionalFields: Array<[string, JSONSchema7]> = [];
+
+                for (const [key, propSchema] of Object.entries(properties)) {
+                  const hasValue = key in objValue && objValue[key] !== undefined;
+                  const isRequired = requiredSet.has(key);
+
+                  if (hasValue || isRequired) {
+                    presentFields.push([key, propSchema as JSONSchema7]);
+                  } else {
+                    optionalFields.push([key, propSchema as JSONSchema7]);
+                  }
+                }
+
+                const handleAddField = (key: string, propSchema: JSONSchema7) => {
+                  const defaultVal = getDefaultValue(propSchema, currentVariant.resolvedSchema);
+                  const newValue = { ...objValue, [key]: defaultVal };
+                  onChange(path, newValue);
+                };
+
+                const handleDeleteField = (key: string) => {
+                  const newValue = { ...objValue };
+                  delete newValue[key];
+                  onChange(path, newValue);
+                };
+
+                return (
+                  <>
+                    {/* Present fields */}
+                    {presentFields.map(([key, propSchema]) => {
+                      const isRequired = requiredSet.has(key);
+                      return (
+                        <div key={key} className="relative group">
+                          <FormField
+                            name={key}
+                            schema={propSchema}
+                            value={objValue[key]}
+                            path={`${path}.${key}`}
+                            required={isRequired}
+                            onChange={onChange}
+                            depth={depth + 1}
+                            rootSchema={rootSchema}
+                            globalExpandLevel={globalExpandLevel}
                           />
+                          {/* Delete button for optional fields that have values */}
+                          {!isRequired && key in objValue && (
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteField(key)}
+                              className="absolute top-0 right-0 p-1 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                              title="Remove field"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+
+                    {/* Optional fields (click to add) */}
+                    {optionalFields.length > 0 && (
+                      <div className="mt-4 pt-3 border-t border-border">
+                        <div className="text-xs text-muted-foreground uppercase tracking-wide mb-2 px-1">
+                          Optional fields
+                        </div>
+                        <div className="space-y-1">
+                          {optionalFields.map(([key, propSchema]) => (
+                            <OptionalField
+                              key={key}
+                              name={key}
+                              schema={propSchema}
+                              rootSchema={rootSchema}
+                              onAdd={() => handleAddField(key, propSchema)}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                );
+              })()
+            ) : (
+              // For other complex types (arrays, dictionaries), render normally
+              <FormField
+                name=""
+                schema={currentVariant.resolvedSchema}
+                value={value}
+                path={path}
+                onChange={onChange}
+                depth={depth + 1}
+                rootSchema={rootSchema}
+                globalExpandLevel={globalExpandLevel}
+              />
+            )}
           </ChildrenContainer>
         )}
       </div>
@@ -408,15 +575,108 @@ export function VariantField({
       {/* Render the current variant's form field (only for non-primitive types) */}
       {currentVariant && !currentVariant.isNull && !currentIsPrimitive && (
         <ChildrenContainer>
-          <FormField
-            name=""
-            schema={currentVariant.resolvedSchema}
-            value={value}
-            path={path}
-            onChange={onChange}
-            depth={0}
-            rootSchema={rootSchema}
-          />
+          {currentVariant.resolvedSchema.properties && Object.keys(currentVariant.resolvedSchema.properties).length > 0 ? (
+            // For objects with properties, render like SchemaForm (present + optional fields)
+            (() => {
+              const objValue = (value as Record<string, unknown>) ?? {};
+              const properties = currentVariant.resolvedSchema.properties;
+              const requiredSet = new Set(currentVariant.resolvedSchema.required || []);
+
+              // Separate into present and optional fields
+              const presentFields: Array<[string, JSONSchema7]> = [];
+              const optionalFields: Array<[string, JSONSchema7]> = [];
+
+              for (const [key, propSchema] of Object.entries(properties)) {
+                const hasValue = key in objValue && objValue[key] !== undefined;
+                const isRequired = requiredSet.has(key);
+
+                if (hasValue || isRequired) {
+                  presentFields.push([key, propSchema as JSONSchema7]);
+                } else {
+                  optionalFields.push([key, propSchema as JSONSchema7]);
+                }
+              }
+
+              const handleAddField = (key: string, propSchema: JSONSchema7) => {
+                const defaultVal = getDefaultValue(propSchema, currentVariant.resolvedSchema);
+                const newValue = { ...objValue, [key]: defaultVal };
+                onChange(path, newValue);
+              };
+
+              const handleDeleteField = (key: string) => {
+                const newValue = { ...objValue };
+                delete newValue[key];
+                onChange(path, newValue);
+              };
+
+              return (
+                <>
+                  {/* Present fields */}
+                  {presentFields.map(([key, propSchema]) => {
+                    const isRequired = requiredSet.has(key);
+                    return (
+                      <div key={key} className="relative group">
+                        <FormField
+                          name={key}
+                          schema={propSchema}
+                          value={objValue[key]}
+                          path={`${path}.${key}`}
+                          required={isRequired}
+                          onChange={onChange}
+                          depth={depth + 1}
+                          rootSchema={rootSchema}
+                          globalExpandLevel={globalExpandLevel}
+                        />
+                        {/* Delete button for optional fields that have values */}
+                        {!isRequired && key in objValue && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteField(key)}
+                            className="absolute top-0 right-0 p-1 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                            title="Remove field"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+
+                  {/* Optional fields (click to add) */}
+                  {optionalFields.length > 0 && (
+                    <div className="mt-4 pt-3 border-t border-border">
+                      <div className="text-xs text-muted-foreground uppercase tracking-wide mb-2 px-1">
+                        Optional fields
+                      </div>
+                      <div className="space-y-1">
+                        {optionalFields.map(([key, propSchema]) => (
+                          <OptionalField
+                            key={key}
+                            name={key}
+                            schema={propSchema}
+                            rootSchema={rootSchema}
+                            onAdd={() => handleAddField(key, propSchema)}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              );
+            })()
+          ) : (
+            // For other complex types (arrays, dictionaries), render normally
+            <FormField
+              name=""
+              schema={currentVariant.resolvedSchema}
+              value={value}
+              path={path}
+              onChange={onChange}
+              depth={depth + 1}
+              rootSchema={rootSchema}
+              globalExpandLevel={globalExpandLevel}
+            />
+          )}
         </ChildrenContainer>
       )}
     </div>

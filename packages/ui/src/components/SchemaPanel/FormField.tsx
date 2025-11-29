@@ -70,8 +70,49 @@ export function FormField(props: FormFieldProps) {
 
   // Resolve $ref if present
   const resolvedSchema = rootSchema ? resolveRef(schema, rootSchema) : schema;
-  let effectiveSchema = { ...resolvedSchema, ...schema };
+  // Spread schema first, then resolvedSchema to let resolved content override
+  // Keep original title/description if present
+  let effectiveSchema: JSONSchema7 = {
+    ...resolvedSchema,
+    title: schema.title || resolvedSchema.title,
+    description: schema.description || resolvedSchema.description,
+  };
   delete effectiveSchema.$ref;
+
+  // Merge allOf schemas into effectiveSchema
+  if (effectiveSchema.allOf && Array.isArray(effectiveSchema.allOf)) {
+    let mergedProperties: Record<string, JSONSchema7> = {};
+    let mergedRequired: string[] = [];
+    let mergedType: JSONSchema7['type'];
+
+    for (const subSchema of effectiveSchema.allOf) {
+      const sub = subSchema as JSONSchema7;
+      // Merge properties
+      if (sub.properties) {
+        Object.entries(sub.properties).forEach(([key, val]) => {
+          if (typeof val === 'object') {
+            mergedProperties[key] = val as JSONSchema7;
+          }
+        });
+      }
+      // Merge required
+      if (sub.required) {
+        mergedRequired = [...mergedRequired, ...sub.required];
+      }
+      // Take type from first subschema that has it
+      if (sub.type && !mergedType) {
+        mergedType = sub.type;
+      }
+    }
+
+    // Create new schema with merged properties
+    effectiveSchema = {
+      ...effectiveSchema,
+      properties: Object.keys(mergedProperties).length > 0 ? mergedProperties : effectiveSchema.properties,
+      required: mergedRequired.length > 0 ? mergedRequired : effectiveSchema.required,
+      type: mergedType || effectiveSchema.type
+    };
+  }
 
   // Helper function to get the effective type from a schema
   function getTypeFromSchema(s: JSONSchema7): string | undefined {
@@ -81,6 +122,17 @@ export function FormField(props: FormFieldProps) {
       }
       return s.type as string;
     }
+    // Infer type from schema structure if type is not explicitly set
+    if (s.properties || s.additionalProperties || s.patternProperties) return 'object';
+    if (s.items) return 'array';
+    if (s.enum) return 'string';
+    // Check inside allOf for type information
+    if (s.allOf && Array.isArray(s.allOf)) {
+      for (const subSchema of s.allOf) {
+        const subType = getTypeFromSchema(subSchema as JSONSchema7);
+        if (subType) return subType;
+      }
+    }
     return undefined;
   }
 
@@ -89,6 +141,41 @@ export function FormField(props: FormFieldProps) {
     (Array.isArray(effectiveSchema.type) && effectiveSchema.type.includes('null')) ||
     effectiveSchema.anyOf?.some((v) => (v as JSONSchema7).type === 'null') ||
     effectiveSchema.oneOf?.some((v) => (v as JSONSchema7).type === 'null');
+
+  // Helper to merge allOf schemas
+  function mergeAllOf(schema: JSONSchema7): JSONSchema7 {
+    if (!schema.allOf || !Array.isArray(schema.allOf)) {
+      return schema;
+    }
+
+    let mergedProperties: Record<string, JSONSchema7> = {};
+    let mergedRequired: string[] = [];
+    let mergedType: JSONSchema7['type'];
+
+    for (const subSchema of schema.allOf) {
+      const sub = subSchema as JSONSchema7;
+      if (sub.properties) {
+        Object.entries(sub.properties).forEach(([key, val]) => {
+          if (typeof val === 'object') {
+            mergedProperties[key] = val as JSONSchema7;
+          }
+        });
+      }
+      if (sub.required) {
+        mergedRequired = [...mergedRequired, ...sub.required];
+      }
+      if (sub.type && !mergedType) {
+        mergedType = sub.type;
+      }
+    }
+
+    return {
+      ...schema,
+      properties: Object.keys(mergedProperties).length > 0 ? mergedProperties : schema.properties,
+      required: mergedRequired.length > 0 ? mergedRequired : schema.required,
+      type: mergedType || schema.type
+    };
+  }
 
   // For anyOf/oneOf with a single non-null variant (possibly via $ref),
   // resolve and expand that variant as the effective schema
@@ -108,12 +195,12 @@ export function FormField(props: FormFieldProps) {
       if (variant.$ref && rootSchema) {
         const resolved = resolveRef(variant, rootSchema);
         if (resolved.type !== 'null') {
-          nonNullVariants.push({ schema: variant, resolved });
+          nonNullVariants.push({ schema: variant, resolved: mergeAllOf(resolved) });
         }
       } else if (variant.type && variant.type !== 'null') {
-        nonNullVariants.push({ schema: variant, resolved: variant });
+        nonNullVariants.push({ schema: variant, resolved: mergeAllOf(variant) });
       } else if (!variant.type && !variant.$ref) {
-        nonNullVariants.push({ schema: variant, resolved: variant });
+        nonNullVariants.push({ schema: variant, resolved: mergeAllOf(variant) });
       }
     }
 
@@ -134,6 +221,7 @@ export function FormField(props: FormFieldProps) {
 
   const title = effectiveSchema.title || name;
   const description = effectiveSchema.description;
+
 
   // Determine the effective type, handling anyOf/oneOf for nullable types
   function getEffectiveType(s: JSONSchema7): string | undefined {
@@ -186,32 +274,9 @@ export function FormField(props: FormFieldProps) {
       return variant.type !== 'null';
     });
 
-    // Auto-detect variant based on value
-    if (nonNullVariants.length > 1 && value !== null && value !== undefined) {
-      if (Array.isArray(value)) {
-        const arrayVariant = nonNullVariants.find((v) => {
-          const variant = v as JSONSchema7;
-          return variant.type === 'array' || variant.items;
-        });
-        if (arrayVariant) {
-          effectiveSchema = arrayVariant as JSONSchema7;
-        } else {
-          return <VariantField {...props} schema={effectiveSchema} />;
-        }
-      } else if (typeof value === 'object') {
-        const objectVariant = nonNullVariants.find((v) => {
-          const variant = v as JSONSchema7;
-          return variant.type === 'object' || variant.properties || variant.additionalProperties;
-        });
-        if (objectVariant) {
-          effectiveSchema = objectVariant as JSONSchema7;
-        } else {
-          return <VariantField {...props} schema={effectiveSchema} />;
-        }
-      } else {
-        return <VariantField {...props} schema={effectiveSchema} />;
-      }
-    } else if (nonNullVariants.length > 1) {
+    // Always delegate to VariantField when there are multiple non-null variants
+    // VariantField will handle variant detection and selection
+    if (nonNullVariants.length > 1) {
       return <VariantField {...props} schema={effectiveSchema} />;
     }
   }
@@ -297,7 +362,12 @@ export function FormField(props: FormFieldProps) {
   }
 
   // Handle object type
-  if (schemaType === 'object' && effectiveSchema.properties) {
+  // Check if schema has properties (either directly or in allOf)
+  const hasProperties = effectiveSchema.properties ||
+    (effectiveSchema.allOf && effectiveSchema.allOf.some((s) => !!(s as JSONSchema7).properties));
+
+
+  if (schemaType === 'object' && hasProperties) {
     return (
       <ObjectField
         {...commonProps}
