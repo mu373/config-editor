@@ -1,4 +1,4 @@
-import { X, Menu, Settings } from 'lucide-react';
+import { X, Menu, Settings, Download, FilePlus, FolderOpen } from 'lucide-react';
 import { useEditorStore } from '../store/editorStore';
 import { detectFormat, type JSONSchema, type SchemaPreset } from '@config-editor/core';
 import {
@@ -55,6 +55,23 @@ export function TabBar({
     input.click();
   };
 
+  const handleDownload = () => {
+    const activeTab = tabs.find((t) => t.id === activeTabId);
+    if (!activeTab) return;
+
+    const extension = activeTab.format === 'json' ? '.json' : '.yaml';
+    const fileName = activeTab.fileName || `untitled${extension}`;
+    const mimeType = activeTab.format === 'json' ? 'application/json' : 'text/yaml';
+
+    const blob = new Blob([activeTab.content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const handleCloseTab = (
     e: React.MouseEvent,
     tabId: string,
@@ -80,7 +97,10 @@ export function TabBar({
           </MenubarTrigger>
           <MenubarContent align="start" sideOffset={8} alignOffset={8}>
             <MenubarSub>
-              <MenubarSubTrigger>New File with Schema</MenubarSubTrigger>
+              <MenubarSubTrigger>
+                <FilePlus className="size-4" />
+                New File with Schema
+              </MenubarSubTrigger>
               <MenubarSubContent>
                 {schemas.map((schema) => (
                   <MenubarItem key={schema.id} onClick={() => onNewTab(schema.id)}>
@@ -93,7 +113,12 @@ export function TabBar({
               </MenubarSubContent>
             </MenubarSub>
             <MenubarItem onClick={handleOpenFile}>
+              <FolderOpen className="size-4" />
               Open File...
+            </MenubarItem>
+            <MenubarItem onClick={handleDownload} disabled={!activeTabId}>
+              <Download className="size-4" />
+              Download
             </MenubarItem>
             {onManageSchemas && (
               <>
