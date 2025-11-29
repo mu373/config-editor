@@ -81,6 +81,16 @@ output:
   name: my-output
 `,
   },
+  'docker-compose': {
+    name: 'Docker Compose',
+    description: 'Docker Compose configuration',
+    defaultContent: `services:
+  web:
+    image: nginx:latest
+    ports:
+      - "80:80"
+`,
+  },
 };
 
 // Load only bundled schemas that actually exist (Vercel build may not include any)

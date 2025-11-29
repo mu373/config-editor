@@ -163,3 +163,65 @@ body,
     @apply bg-background text-foreground;
   }
 }
+
+/* Accent color definitions based on Tailwind color palettes */
+:root {
+  /* Default accent color is sky (set via data-accent attribute) */
+  --tree-accent: oklch(0.609 0.154 241.375); /* sky-600 */
+  --tree-accent-light: oklch(0.685 0.169 237.323); /* sky-500 */
+}
+
+/* Gray scale accents */
+[data-accent="slate"] { --tree-accent: oklch(0.446 0.043 257.281); --tree-accent-light: oklch(0.554 0.046 257.417); }
+[data-accent="gray"] { --tree-accent: oklch(0.446 0.03 264.536); --tree-accent-light: oklch(0.551 0.027 264.364); }
+[data-accent="zinc"] { --tree-accent: oklch(0.442 0.017 285.786); --tree-accent-light: oklch(0.552 0.016 285.938); }
+[data-accent="neutral"] { --tree-accent: oklch(0.439 0 0); --tree-accent-light: oklch(0.556 0 0); }
+[data-accent="stone"] { --tree-accent: oklch(0.444 0.011 73.639); --tree-accent-light: oklch(0.553 0.013 58.071); }
+
+/* Warm colors */
+[data-accent="red"] { --tree-accent: oklch(0.577 0.245 27.325); --tree-accent-light: oklch(0.637 0.237 25.331); }
+[data-accent="orange"] { --tree-accent: oklch(0.646 0.222 41.116); --tree-accent-light: oklch(0.705 0.213 47.604); }
+[data-accent="amber"] { --tree-accent: oklch(0.666 0.179 58.318); --tree-accent-light: oklch(0.769 0.188 70.08); }
+[data-accent="yellow"] { --tree-accent: oklch(0.795 0.184 86.047); --tree-accent-light: oklch(0.852 0.199 91.936); }
+[data-accent="lime"] { --tree-accent: oklch(0.768 0.233 130.85); --tree-accent-light: oklch(0.841 0.238 128.85); }
+
+/* Green colors */
+[data-accent="green"] { --tree-accent: oklch(0.627 0.194 149.214); --tree-accent-light: oklch(0.723 0.219 149.579); }
+[data-accent="emerald"] { --tree-accent: oklch(0.596 0.145 163.225); --tree-accent-light: oklch(0.696 0.17 162.48); }
+[data-accent="teal"] { --tree-accent: oklch(0.6 0.118 184.704); --tree-accent-light: oklch(0.704 0.14 182.503); }
+[data-accent="cyan"] { --tree-accent: oklch(0.609 0.126 221.723); --tree-accent-light: oklch(0.715 0.143 215.221); }
+[data-accent="sky"] { --tree-accent: oklch(0.609 0.154 241.375); --tree-accent-light: oklch(0.685 0.169 237.323); }
+
+/* Blue colors */
+[data-accent="blue"] { --tree-accent: oklch(0.546 0.245 262.881); --tree-accent-light: oklch(0.623 0.214 259.815); }
+[data-accent="indigo"] { --tree-accent: oklch(0.511 0.262 276.966); --tree-accent-light: oklch(0.585 0.233 277.117); }
+[data-accent="violet"] { --tree-accent: oklch(0.541 0.281 293.009); --tree-accent-light: oklch(0.606 0.25 292.717); }
+
+/* Purple/Pink colors */
+[data-accent="purple"] { --tree-accent: oklch(0.558 0.288 302.321); --tree-accent-light: oklch(0.627 0.265 303.9); }
+[data-accent="fuchsia"] { --tree-accent: oklch(0.591 0.293 322.896); --tree-accent-light: oklch(0.667 0.295 322.15); }
+[data-accent="pink"] { --tree-accent: oklch(0.592 0.249 0.584); --tree-accent-light: oklch(0.656 0.241 354.308); }
+[data-accent="rose"] { --tree-accent: oklch(0.586 0.225 17.18); --tree-accent-light: oklch(0.645 0.246 16.439); }
+
+/* Tree navigation highlight animation */
+.tree-nav-highlight {
+  @apply rounded relative;
+  z-index: 1;
+  box-shadow: inset 0 0 0 1px var(--tree-accent);
+  background-color: oklch(from var(--tree-accent) l c h / 0.08);
+  animation: tree-nav-highlight-fade 1.5s ease-out forwards;
+}
+
+/* Hide indent borders when highlight is active */
+.tree-nav-highlight > .border-l-2 {
+  border-left-color: transparent;
+}
+
+@keyframes tree-nav-highlight-fade {
+  0% {
+    background-color: oklch(from var(--tree-accent) l c h / 0.15);
+  }
+  100% {
+    background-color: oklch(from var(--tree-accent) l c h / 0.05);
+  }
+}
