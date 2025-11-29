@@ -4,6 +4,7 @@ export * from './schema/loader';
 export * from './schema/validator';
 export * from './schema/registry';
 export * from './schema/utils';
+export * from './schema/resolver';
 export * from './validation/keys';
 export * from './path/types';
 export * from './path/parser';
