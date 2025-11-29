@@ -2,7 +2,11 @@ import { useSettingsStore, type MonacoTheme } from '../store/settingsStore';
 
 const themes: { value: MonacoTheme; label: string; description: string }[] = [
   { value: 'vs', label: 'Light', description: 'Default light theme' },
-  { value: 'vs-dark', label: 'Dark', description: 'Dark theme' },
+  { value: 'vs-dark', label: 'Dark', description: 'Default dark theme' },
+  { value: 'monokai', label: 'Monokai', description: 'Classic Monokai theme' },
+  { value: 'dracula', label: 'Dracula', description: 'Dracula theme' },
+  { value: 'solarized-dark', label: 'Solarized Dark', description: 'Solarized dark theme' },
+  { value: 'solarized-light', label: 'Solarized Light', description: 'Solarized light theme' },
   { value: 'hc-black', label: 'High Contrast', description: 'High contrast dark' },
   { value: 'hc-light', label: 'High Contrast Light', description: 'High contrast light' },
 ];

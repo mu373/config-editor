@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export type MonacoTheme = 'vs' | 'vs-dark' | 'hc-black' | 'hc-light';
+export type MonacoTheme = 'vs' | 'vs-dark' | 'hc-black' | 'hc-light' | 'monokai' | 'dracula' | 'solarized-dark' | 'solarized-light';
 
 // Active view types: 'editor' for file tabs, 'schemas' for schemas panel, 'settings' for settings panel
 export type ActiveView = 'editor' | 'schemas' | 'settings';

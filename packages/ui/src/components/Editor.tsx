@@ -5,6 +5,7 @@ import type { editor } from 'monaco-editor';
 import { Download } from 'lucide-react';
 import { useEditorStore } from '../store/editorStore';
 import { useSettingsStore } from '../store/settingsStore';
+import { registerCustomThemes } from '../lib/monacoThemes';
 import { ToggleGroup, ToggleGroupItem } from './ui/toggle-group';
 import { Button } from './ui/button';
 import {
@@ -35,6 +36,8 @@ export function Editor() {
   ) => {
     editorRef.current = editor;
     monacoRef.current = monaco;
+    // Register custom themes
+    registerCustomThemes(monaco);
     // Initialize content tracking with what Monaco starts with
     const initialContent = editor.getValue();
     lastMonacoContentRef.current = initialContent;
