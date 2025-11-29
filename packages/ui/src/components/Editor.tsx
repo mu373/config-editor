@@ -2,8 +2,10 @@ import { useRef, useEffect, useCallback } from 'react';
 import MonacoEditor, { type Monaco } from '@monaco-editor/react';
 import { configureMonacoYaml } from 'monaco-yaml';
 import type { editor } from 'monaco-editor';
+import { Download } from 'lucide-react';
 import { useEditorStore } from '../store/editorStore';
 import { ToggleGroup, ToggleGroupItem } from './ui/toggle-group';
+import { Button } from './ui/button';
 import {
   parseYaml,
   stringifyYaml,
@@ -13,7 +15,7 @@ import {
 } from '@config-editor/core';
 
 export function Editor() {
-  const { tabs, activeTabId, setContent, setFormat } = useEditorStore();
+  const { tabs, activeTabId, setContent, setFormat, markClean } = useEditorStore();
   const activeTab = tabs.find((t) => t.id === activeTabId);
 
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
@@ -76,6 +78,20 @@ export function Editor() {
     [activeTab, setContent, setFormat]
   );
 
+  const handleDownload = useCallback(() => {
+    if (!activeTab) return;
+    const ext = activeTab.format === 'json' ? 'json' : 'yaml';
+    const defaultName = activeTab.fileName || `config.${ext}`;
+    const blob = new Blob([activeTab.content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = defaultName;
+    a.click();
+    URL.revokeObjectURL(url);
+    markClean();
+  }, [activeTab, markClean]);
+
   if (!activeTab) {
     return (
       <div className="h-full w-full flex items-center justify-center bg-muted text-muted-foreground">
@@ -94,7 +110,7 @@ export function Editor() {
   return (
     <div className="h-full w-full flex flex-col">
       {/* Header - matching SchemaPanel style */}
-      <div className="flex items-center justify-end px-3 h-10 border-b border-border bg-muted">
+      <div className="flex items-center justify-end gap-2 px-3 h-10 border-b border-border bg-muted">
         <ToggleGroup
           type="single"
           value={activeTab.format}
@@ -109,6 +125,14 @@ export function Editor() {
             JSON
           </ToggleGroupItem>
         </ToggleGroup>
+        <Button
+          variant="outline"
+          size="icon-sm"
+          onClick={handleDownload}
+          title="Download"
+        >
+          <Download className="size-3.5" />
+        </Button>
       </div>
 
       {/* Monaco Editor */}

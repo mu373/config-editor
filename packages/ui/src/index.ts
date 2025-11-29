@@ -1,5 +1,4 @@
 export * from './components/Editor';
-export * from './components/Toolbar';
 export * from './components/TabBar';
 export * from './components/EditorLayout';
 export * from './components/SchemaPanel';

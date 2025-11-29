@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   EditorLayout,
-  Toolbar,
   TabBar,
   useEditorStore,
   useSchemaStore,
@@ -173,15 +172,13 @@ export default function App() {
 
   return (
     <div className="h-full flex flex-col bg-gray-50">
-      <Toolbar
-        defaultSchema={defaultPreset?.schema ?? null}
-        defaultSchemaId={defaultPreset?.id ?? null}
-      />
       <TabBar
         schemas={schemaPresets}
         onNewTab={handleNewTab}
         onManageSchemas={handleManageSchemas}
         schemasViewActive={schemasView === 'edit'}
+        defaultSchema={defaultPreset?.schema ?? null}
+        defaultSchemaId={defaultPreset?.id ?? null}
       />
       <main className="flex-1 min-h-0">
         <EditorLayout schemas={schemaPresets} onNewTab={handleNewTab} />

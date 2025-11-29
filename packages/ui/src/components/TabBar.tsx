@@ -1,12 +1,25 @@
-import { X, Plus, ChevronDown, Settings } from 'lucide-react';
+import { X, Menu, Settings } from 'lucide-react';
 import { useEditorStore } from '../store/editorStore';
-import type { SchemaPreset } from '@config-editor/core';
+import { detectFormat, type JSONSchema, type SchemaPreset } from '@config-editor/core';
+import {
+  Menubar,
+  MenubarContent,
+  MenubarItem,
+  MenubarMenu,
+  MenubarSeparator,
+  MenubarSub,
+  MenubarSubContent,
+  MenubarSubTrigger,
+  MenubarTrigger,
+} from './ui/menubar';
 
 interface TabBarProps {
   schemas: SchemaPreset[];
   onNewTab: (schemaId: string) => void;
   onManageSchemas?: () => void;
   schemasViewActive?: boolean;
+  defaultSchema?: JSONSchema | null;
+  defaultSchemaId?: string | null;
 }
 
 export function TabBar({
@@ -14,8 +27,33 @@ export function TabBar({
   onNewTab,
   onManageSchemas,
   schemasViewActive,
+  defaultSchema,
+  defaultSchemaId,
 }: TabBarProps) {
-  const { tabs, activeTabId, setActiveTab, closeTab } = useEditorStore();
+  const { tabs, activeTabId, setActiveTab, closeTab, addTab } = useEditorStore();
+
+  const handleOpenFile = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.yaml,.yml,.json';
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+
+      const text = await file.text();
+      const detected = detectFormat(text);
+
+      addTab({
+        fileName: file.name,
+        content: text,
+        format: detected,
+        schema: defaultSchema ?? null,
+        schemaId: defaultSchemaId ?? null,
+        isDirty: false,
+      });
+    };
+    input.click();
+  };
 
   const handleCloseTab = (
     e: React.MouseEvent,
@@ -34,50 +72,41 @@ export function TabBar({
 
   return (
     <div className="flex items-center border-b border-border bg-muted min-h-[40px]">
-      {/* New Tab Dropdown */}
-      <div className="relative group">
-        <button
-          className="flex items-center gap-1 px-3 py-2 text-sm text-muted-foreground hover:bg-accent border-r border-border"
-          title="New file"
-        >
-          <Plus className="w-4 h-4" />
-          New
-          <ChevronDown className="w-3 h-3" />
-        </button>
-        <div className="absolute left-0 top-full mt-0 bg-popover border border-border rounded-md shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 min-w-[200px]">
-          {schemas.map((schema) => (
-            <button
-              key={schema.id}
-              onClick={() => onNewTab(schema.id)}
-              className="block w-full text-left px-4 py-2 text-sm text-popover-foreground hover:bg-accent first:rounded-t-md last:rounded-b-md"
-            >
-              <div className="font-medium">{schema.name}</div>
-              {schema.description && (
-                <div className="text-xs text-muted-foreground mt-0.5">
-                  {schema.description}
-                </div>
-              )}
-            </button>
-          ))}
-          {schemas.length === 0 && (
-            <div className="px-4 py-2 text-sm text-muted-foreground">
-              No schemas registered
-            </div>
-          )}
-          {onManageSchemas && (
-            <>
-              <div className="border-t border-border my-1" />
-              <button
-                onClick={onManageSchemas}
-                className="flex items-center gap-2 w-full text-left px-4 py-2 text-sm text-muted-foreground hover:bg-accent last:rounded-b-md"
-              >
-                <Settings className="w-4 h-4" />
-                Manage Schemas...
-              </button>
-            </>
-          )}
-        </div>
-      </div>
+      {/* Hamburger Menu */}
+      <Menubar className="border-0 rounded-none bg-transparent shadow-none h-auto p-0">
+        <MenubarMenu>
+          <MenubarTrigger className="px-3 py-2 rounded-none border-r border-border data-[state=open]:bg-accent">
+            <Menu className="size-4" />
+          </MenubarTrigger>
+          <MenubarContent align="start" sideOffset={8} alignOffset={8}>
+            <MenubarSub>
+              <MenubarSubTrigger>New File with Schema</MenubarSubTrigger>
+              <MenubarSubContent>
+                {schemas.map((schema) => (
+                  <MenubarItem key={schema.id} onClick={() => onNewTab(schema.id)}>
+                    {schema.name}
+                  </MenubarItem>
+                ))}
+                {schemas.length === 0 && (
+                  <MenubarItem disabled>No schemas registered</MenubarItem>
+                )}
+              </MenubarSubContent>
+            </MenubarSub>
+            <MenubarItem onClick={handleOpenFile}>
+              Open File...
+            </MenubarItem>
+            {onManageSchemas && (
+              <>
+                <MenubarSeparator />
+                <MenubarItem onClick={onManageSchemas}>
+                  <Settings className="size-4" />
+                  Manage Schemas...
+                </MenubarItem>
+              </>
+            )}
+          </MenubarContent>
+        </MenubarMenu>
+      </Menubar>
 
       {/* Tab List */}
       <div className="flex-1 flex items-center overflow-x-auto">
