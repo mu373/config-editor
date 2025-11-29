@@ -56,22 +56,27 @@ export function useDocument(
  * React hook for subscribing to DocumentModel changes.
  * Triggers a re-render whenever the document changes.
  *
- * @param document - The DocumentModel to subscribe to
- * @returns The current document data
+ * @param document - The DocumentModel to subscribe to (can be null)
+ * @returns The current document data, or empty object if no document
  *
  * @example
  * ```tsx
- * function MyComponent({ document }: { document: DocumentModel }) {
+ * function MyComponent({ document }: { document: DocumentModel | null }) {
  *   const data = useDocumentData(document);
  *
  *   return <div>{JSON.stringify(data)}</div>;
  * }
  * ```
  */
-export function useDocumentData(document: DocumentModel): Record<string, unknown> {
-  const [data, setData] = useState(() => document.getData());
+export function useDocumentData(document: DocumentModel | null): Record<string, unknown> {
+  const [data, setData] = useState(() => document?.getData() ?? {});
 
   useEffect(() => {
+    if (!document) {
+      setData({});
+      return;
+    }
+
     // Subscribe to document changes
     const unsubscribe = document.subscribe((doc) => {
       setData(doc.getData());

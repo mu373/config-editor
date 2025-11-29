@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import { SchemaForm, type GlobalExpandLevel } from './SchemaForm';
 import { SchemaTreeSidebar } from './SchemaTreeSidebar';
@@ -11,130 +11,38 @@ import {
   SelectValue,
 } from '../ui/select';
 import type { JSONSchema7 } from 'json-schema';
-import {
-  parseYaml,
-  stringifyYaml,
-  parseJson,
-  stringifyJson,
-  parseJsonc,
-  stringifyJsonc,
-  updateYamlPreservingComments,
-  updateJsonPreservingComments,
-  type Format,
-  type SchemaPreset,
-} from '@config-editor/core';
+import { DocumentModel, type SchemaPreset } from '@config-editor/core';
 import { useTreeStore } from '../../store/treeStore';
-
-// Debounce delay for content updates - balance between responsive feel and avoiding input disruption
-const DEBOUNCE_DELAY = 300;
+import { useDocumentData } from '../../hooks/useDocument';
 
 interface SchemaPanelProps {
-  schema: JSONSchema7 | null;
+  document: DocumentModel | null;
   schemaId?: string | null;
   schemas?: SchemaPreset[];
   onSchemaChange?: (schemaId: string) => void;
-  content: string;
-  format: Format;
-  onContentChange: (content: string) => void;
 }
 
 export function SchemaPanel({
-  schema,
+  document,
   schemaId,
   schemas,
   onSchemaChange,
-  content,
-  format,
-  onContentChange,
 }: SchemaPanelProps) {
-  const [parseError, setParseError] = useState<string | null>(null);
   const [globalExpandLevel, setGlobalExpandLevel] = useState<GlobalExpandLevel>(1);
-  const lastValidValueRef = useRef<Record<string, unknown> | null>(null);
-  const debounceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Track pending value to use for form while debounced update is pending
-  const [pendingValue, setPendingValue] = useState<Record<string, unknown> | null>(null);
-  // Track the last content we sent to parent to distinguish our own updates from external ones
-  const lastSentContentRef = useRef<string>('');
 
-  // Cleanup debounce timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (debounceTimeoutRef.current) {
-        clearTimeout(debounceTimeoutRef.current);
-      }
-    };
-  }, []);
+  // Subscribe to document data changes
+  const formValue = useDocumentData(document);
+  const schema = document?.getSchema() as JSONSchema7 | null;
 
-  // Parse content to object for form editing
-  const parsedValue = useMemo(() => {
-    if (!content) return {};
-    try {
-      let parsed: unknown;
-      if (format === 'yaml') {
-        parsed = parseYaml(content);
-      } else if (format === 'jsonc') {
-        parsed = parseJsonc(content);
-      } else {
-        parsed = parseJson(content);
-      }
-      setParseError(null);
-      lastValidValueRef.current = parsed as Record<string, unknown>;
-
-      return parsed as Record<string, unknown>;
-    } catch (err) {
-      setParseError((err as Error).message);
-      return lastValidValueRef.current ?? {};
-    }
-  }, [content, format]);
-
-  // Clear pending value when content changes
-  // - If it matches lastSentContentRef, our own update arrived - safe to clear
-  // - If it doesn't match, external change - also clear to show external data
-  useEffect(() => {
-    setPendingValue(null);
-  }, [content]);
-
-  // Use pending value if available (for immediate form feedback), otherwise parsed content
-  const formValue = pendingValue ?? parsedValue;
-
-  // Ref to always have latest content without recreating callback
-  const contentRef = useRef(content);
-  useEffect(() => {
-    contentRef.current = content;
-  }, [content]);
-
-  // Handle form changes - debounce serialization to reduce Monaco updates
+  // Handle form changes - update document directly
   const handleFormChange = useCallback(
     (newValue: Record<string, unknown>) => {
-      // Update form immediately for responsive UI
-      setPendingValue(() => newValue);
+      if (!document) return;
 
-      // Clear existing timeout
-      if (debounceTimeoutRef.current) {
-        clearTimeout(debounceTimeoutRef.current);
-      }
-
-      // Debounce the serialization and store update
-      debounceTimeoutRef.current = setTimeout(() => {
-        try {
-          let newContent: string;
-          const currentContent = contentRef.current;
-          if (format === 'yaml') {
-            // Pass schema for property ordering (cast to unknown to satisfy TypeScript)
-            newContent = updateYamlPreservingComments(currentContent, newValue, schema as unknown as Parameters<typeof updateYamlPreservingComments>[2]);
-          } else if (format === 'jsonc') {
-            newContent = updateJsonPreservingComments(currentContent, newValue);
-          } else {
-            newContent = stringifyJson(newValue);
-          }
-          lastSentContentRef.current = newContent;
-          onContentChange(newContent);
-        } catch (err) {
-          console.error('Serialization error:', err);
-        }
-      }, DEBOUNCE_DELAY);
+      // Update document - this will automatically sync to Monaco via observer
+      document.setData(newValue);
     },
-    [format, onContentChange, schema]
+    [document]
   );
 
   const { expandFormAncestors } = useTreeStore();
@@ -158,7 +66,7 @@ export function SchemaPanel({
 
       // Scroll to element after DOM update
       requestAnimationFrame(() => {
-        const element = document.querySelector(`[data-field-path="${path}"]`);
+        const element = globalThis.document.querySelector(`[data-field-path="${path}"]`);
         if (element) {
           // Custom fast scroll with ease-out curve
           const scrollContainer = element.closest('.overflow-auto, .overflow-y-auto');
@@ -255,12 +163,6 @@ export function SchemaPanel({
           </SelectContent>
         </Select>
       </div>
-
-      {parseError && (
-        <div className="px-3 py-2 bg-yellow-50 border-b border-border text-xs text-yellow-800">
-          ⚠ Parse error: showing last valid state
-        </div>
-      )}
 
       <div className="flex-1 overflow-hidden">
         {schema ? (

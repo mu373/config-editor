@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback, useMemo } from 'react';
+import { useRef, useEffect, useCallback } from 'react';
 import MonacoEditor, { type Monaco } from '@monaco-editor/react';
 import { configureMonacoYaml } from 'monaco-yaml';
 import type { editor } from 'monaco-editor';
@@ -11,7 +11,11 @@ import { Button } from './ui/button';
 import { DocumentModel, type Format } from '@config-editor/core';
 import { useMonacoSync } from '../hooks/useMonacoSync';
 
-export function Editor() {
+interface EditorProps {
+  documentModel: DocumentModel | null;
+}
+
+export function Editor({ documentModel }: EditorProps) {
   const { tabs, activeTabId, setContent, setFormat, markClean } = useEditorStore();
   const { settings } = useSettingsStore();
   const activeTab = tabs.find((t) => t.id === activeTabId);
@@ -19,35 +23,24 @@ export function Editor() {
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<Monaco | null>(null);
 
-  // Create DocumentModel for the active tab
-  const documentModel = useMemo(() => {
-    if (!activeTab) return null;
-
-    return DocumentModel.deserialize(
-      activeTab.content,
-      activeTab.format,
-      activeTab.schema ?? {}
-    );
-  }, [activeTabId]); // Recreate when tab changes
-
   // Update documentModel when tab content/schema/format changes from store
   useEffect(() => {
     if (!documentModel || !activeTab) return;
 
     documentModel.updateFromContent(activeTab.content);
-  }, [activeTab?.content]);
+  }, [documentModel, activeTab?.content]);
 
   useEffect(() => {
     if (!documentModel || !activeTab?.schema) return;
 
     documentModel.setSchema(activeTab.schema);
-  }, [activeTab?.schema]);
+  }, [documentModel, activeTab?.schema]);
 
   useEffect(() => {
     if (!documentModel || !activeTab) return;
 
     documentModel.setFormat(activeTab.format);
-  }, [activeTab?.format]);
+  }, [documentModel, activeTab?.format]);
 
   // Subscribe to documentModel changes and sync to store
   useEffect(() => {
