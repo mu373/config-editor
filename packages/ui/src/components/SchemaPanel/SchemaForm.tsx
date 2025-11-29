@@ -31,6 +31,15 @@ function setValueAtPath(
   const [first, ...rest] = parts as [string, ...string[]];
   if (!first) return obj;
   if (parts.length === 1) {
+    // Handle array index syntax
+    if (first.startsWith('[') && first.endsWith(']')) {
+      const index = parseInt(first.slice(1, -1), 10);
+      if (Array.isArray(obj)) {
+        const newArray = [...obj];
+        newArray[index] = value;
+        return newArray as unknown as Record<string, unknown>;
+      }
+    }
     return { ...obj, [first]: value };
   }
   const restPath = rest.map((p, i) => {
@@ -39,6 +48,31 @@ function setValueAtPath(
     }
     return i === 0 ? p : `.${p}`;
   }).join('');
+
+  // Handle array index in first segment
+  if (first.startsWith('[') && first.endsWith(']')) {
+    const index = parseInt(first.slice(1, -1), 10);
+    if (Array.isArray(obj)) {
+      const newArray = [...obj];
+      const currentValue = newArray[index];
+      const nextIsArray = rest[0]?.startsWith('[') && rest[0]?.endsWith(']');
+
+      let nextObj: Record<string, unknown>;
+      if (currentValue === undefined || currentValue === null) {
+        nextObj = nextIsArray ? [] as unknown as Record<string, unknown> : {};
+      } else if (Array.isArray(currentValue)) {
+        nextObj = [...currentValue] as unknown as Record<string, unknown>;
+      } else if (typeof currentValue === 'object') {
+        nextObj = { ...currentValue as Record<string, unknown> };
+      } else {
+        nextObj = nextIsArray ? [] as unknown as Record<string, unknown> : {};
+      }
+
+      newArray[index] = setValueAtPath(nextObj, restPath, value);
+      return newArray as unknown as Record<string, unknown>;
+    }
+    // If not an array, treat as property key (fallback)
+  }
 
   const currentValue = obj[first];
   const nextIsArray = rest[0]?.startsWith('[') && rest[0]?.endsWith(']');

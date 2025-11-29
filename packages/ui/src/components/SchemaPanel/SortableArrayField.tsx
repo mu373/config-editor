@@ -144,7 +144,7 @@ export function SortableArrayField({
   globalExpandLevel = null,
   hideHeader = false,
 }: SortableArrayFieldProps) {
-  const items = value ?? [];
+  const items = Array.isArray(value) ? value : [];
 
   // Use treeStore for form expansion state
   // Subscribe to manuallyToggledFormPaths to trigger re-renders when paths are expanded via navigation
@@ -253,12 +253,11 @@ export function SortableArrayField({
   );
 
   const handleItemChange = useCallback(
-    (index: number, newValue: unknown) => {
-      const newItems = [...items];
-      newItems[index] = newValue;
-      onChange(path, newItems);
+    (itemPath: string, newValue: unknown) => {
+      // Forward the change directly - DocumentModel handles the path
+      onChange(itemPath, newValue);
     },
-    [items, onChange, path]
+    [onChange]
   );
 
   const handleCollapseAll = useCallback(() => {
@@ -315,7 +314,7 @@ export function SortableArrayField({
                   schema={resolvedItemSchema}
                   value={item}
                   path={`${path}[${index}]`}
-                  onChange={(_, newValue) => handleItemChange(index, newValue)}
+                  onChange={handleItemChange}
                   depth={1}
                   rootSchema={rootSchema}
                   isExpandedControlled={itemsAreObjects ? expandedItems.has(index) : undefined}
@@ -422,7 +421,7 @@ export function SortableArrayField({
                       schema={resolvedItemSchema}
                       value={item}
                       path={`${path}[${index}]`}
-                      onChange={(_, newValue) => handleItemChange(index, newValue)}
+                      onChange={handleItemChange}
                       depth={1}
                       rootSchema={rootSchema}
                       isExpandedControlled={itemsAreObjects ? expandedItems.has(index) : undefined}
@@ -441,7 +440,7 @@ export function SortableArrayField({
                       } : undefined}
                       summaryLabel={getSummaryValue(item, resolvedItemSchema, rootSchema)}
                       globalExpandLevel={globalExpandLevel}
-                                          />
+                    />
                   </SortableItem>
                 ))}
               </SortableContext>
@@ -529,7 +528,7 @@ export function SortableArrayField({
                     schema={resolvedItemSchema}
                     value={item}
                     path={`${path}[${index}]`}
-                    onChange={(_, newValue) => handleItemChange(index, newValue)}
+                    onChange={handleItemChange}
                     depth={0}
                     rootSchema={rootSchema}
                     isExpandedControlled={itemsAreObjects ? expandedItems.has(index) : undefined}
