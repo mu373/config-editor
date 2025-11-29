@@ -230,9 +230,9 @@ export default function App() {
 
     if (!fileUrl) return;
 
-    async function loadFromUrlParams() {
+    async function loadFromUrlParams(url: string) {
       try {
-        const rawUrl = convertGitHubUrlToRaw(fileUrl);
+        const rawUrl = convertGitHubUrlToRaw(url);
         const response = await fetch(rawUrl);
         if (!response.ok) {
           console.error(`Failed to fetch: ${response.status} ${response.statusText}`);
@@ -241,7 +241,7 @@ export default function App() {
 
         const text = await response.text();
         const detected = detectFormat(text);
-        const fileName = fileUrl.split('/').pop() || 'untitled';
+        const fileName = url.split('/').pop() || 'untitled';
 
         const selectedSchema = schemaName
           ? schemaPresets.find((s) => s.id === schemaName)
@@ -263,7 +263,7 @@ export default function App() {
       }
     }
 
-    loadFromUrlParams();
+    loadFromUrlParams(fileUrl);
   }, [isLoading, addTab, schemaPresets]);
 
   const handleNewTab = useCallback(
