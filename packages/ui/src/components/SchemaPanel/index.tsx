@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import { SchemaForm, type GlobalExpandLevel } from './SchemaForm';
 import { SchemaTreeSidebar } from './SchemaTreeSidebar';
@@ -31,16 +31,41 @@ export function SchemaPanel({
   const [globalExpandLevel, setGlobalExpandLevel] = useState<GlobalExpandLevel>(1);
 
   // Subscribe to document data changes
-  const formValue = useDocumentData(document);
+  const documentData = useDocumentData(document);
   const schema = document?.getSchema() as JSONSchema7 | null;
 
-  // Handle form changes - update document directly
+  // Local form value for immediate UI updates (prevents input lag)
+  const [localFormValue, setLocalFormValue] = useState(documentData);
+
+  // Debounce timer for syncing local changes back to document
+  const formChangeDebounceRef = useRef<NodeJS.Timeout>();
+
+  // Sync document data to local form value when document changes externally (e.g., from Monaco)
+  useEffect(() => {
+    setLocalFormValue(documentData);
+  }, [documentData]);
+
+  // Cleanup debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      clearTimeout(formChangeDebounceRef.current);
+    };
+  }, []);
+
+  // Handle form changes - update local state immediately, sync to document with debouncing
   const handleFormChange = useCallback(
     (newValue: Record<string, unknown>) => {
       if (!document) return;
 
-      // Update document - this will automatically sync to Monaco via observer
-      document.setData(newValue);
+      // Update local state immediately for responsive UI
+      setLocalFormValue(newValue);
+
+      // Debounce document updates to avoid excessive serialization and Monaco updates
+      clearTimeout(formChangeDebounceRef.current);
+      formChangeDebounceRef.current = setTimeout(() => {
+        // Update document - this will automatically sync to Monaco via observer
+        document.setData(newValue);
+      }, 150); // 150ms debounce matches Monaco sync delay
     },
     [document]
   );
@@ -177,7 +202,7 @@ export function SchemaPanel({
               <Panel defaultSize={30} minSize={15} maxSize={50}>
                 <SchemaTreeSidebar
                   schema={schema}
-                  value={formValue}
+                  value={localFormValue}
                   onNavigate={handleTreeNavigate}
                 />
               </Panel>
@@ -186,7 +211,7 @@ export function SchemaPanel({
                 <div className="h-full overflow-auto [scrollbar-gutter:stable]">
                   <SchemaForm
                     schema={schema}
-                    value={formValue}
+                    value={localFormValue}
                     onChange={handleFormChange}
                     globalExpandLevel={globalExpandLevel}
                   />

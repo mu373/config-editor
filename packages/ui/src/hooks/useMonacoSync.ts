@@ -24,7 +24,7 @@ import { DocumentModel } from '@config-editor/core';
 export function useMonacoSync(
   document: DocumentModel | null,
   editor: editor.IStandaloneCodeEditor | null,
-  debounceMs: number = 300
+  debounceMs: number = 150
 ): void {
   const debounceRef = useRef<NodeJS.Timeout>();
   const isUpdatingFromDocumentRef = useRef(false);
