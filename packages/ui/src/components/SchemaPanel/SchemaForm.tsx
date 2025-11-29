@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useRef, useEffect } from 'react';
 import type { JSONSchema7 } from 'json-schema';
-import { resolveRef, getDefaultValue } from '@config-editor/core';
+import { resolveRef, getDefaultValue, parsePath, setValueAtPath } from '@config-editor/core';
 import { FormField } from './FormField';
 import { Plus, Trash2 } from 'lucide-react';
 
@@ -17,81 +17,6 @@ interface SchemaFormProps {
   value: Record<string, unknown>;
   onChange: (value: Record<string, unknown>) => void;
   globalExpandLevel: GlobalExpandLevel;
-}
-
-function setValueAtPath(
-  obj: Record<string, unknown>,
-  path: string,
-  value: unknown
-): Record<string, unknown> {
-  const parts = (path.match(/[^.\[\]]+|\[\d+\]/g) ?? []) as string[];
-
-  if (parts.length === 0) return obj;
-
-  const [first, ...rest] = parts as [string, ...string[]];
-  if (!first) return obj;
-  if (parts.length === 1) {
-    // Handle array index syntax
-    if (first.startsWith('[') && first.endsWith(']')) {
-      const index = parseInt(first.slice(1, -1), 10);
-      if (Array.isArray(obj)) {
-        const newArray = [...obj];
-        newArray[index] = value;
-        return newArray as unknown as Record<string, unknown>;
-      }
-    }
-    return { ...obj, [first]: value };
-  }
-  const restPath = rest.map((p, i) => {
-    if (p.startsWith('[') && p.endsWith(']')) {
-      return p;
-    }
-    return i === 0 ? p : `.${p}`;
-  }).join('');
-
-  // Handle array index in first segment
-  if (first.startsWith('[') && first.endsWith(']')) {
-    const index = parseInt(first.slice(1, -1), 10);
-    if (Array.isArray(obj)) {
-      const newArray = [...obj];
-      const currentValue = newArray[index];
-      const nextIsArray = rest[0]?.startsWith('[') && rest[0]?.endsWith(']');
-
-      let nextObj: Record<string, unknown>;
-      if (currentValue === undefined || currentValue === null) {
-        nextObj = nextIsArray ? [] as unknown as Record<string, unknown> : {};
-      } else if (Array.isArray(currentValue)) {
-        nextObj = [...currentValue] as unknown as Record<string, unknown>;
-      } else if (typeof currentValue === 'object') {
-        nextObj = { ...currentValue as Record<string, unknown> };
-      } else {
-        nextObj = nextIsArray ? [] as unknown as Record<string, unknown> : {};
-      }
-
-      newArray[index] = setValueAtPath(nextObj, restPath, value);
-      return newArray as unknown as Record<string, unknown>;
-    }
-    // If not an array, treat as property key (fallback)
-  }
-
-  const currentValue = obj[first];
-  const nextIsArray = rest[0]?.startsWith('[') && rest[0]?.endsWith(']');
-
-  let nextObj: Record<string, unknown>;
-  if (currentValue === undefined || currentValue === null) {
-    nextObj = nextIsArray ? [] as unknown as Record<string, unknown> : {};
-  } else if (Array.isArray(currentValue)) {
-    nextObj = [...currentValue] as unknown as Record<string, unknown>;
-  } else if (typeof currentValue === 'object') {
-    nextObj = { ...currentValue as Record<string, unknown> };
-  } else {
-    nextObj = nextIsArray ? [] as unknown as Record<string, unknown> : {};
-  }
-
-  return {
-    ...obj,
-    [first]: setValueAtPath(nextObj, restPath, value),
-  };
 }
 
 interface OptionalFieldProps {
@@ -123,6 +48,21 @@ function OptionalField({ name, schema, rootSchema, onAdd }: OptionalFieldProps) 
   );
 }
 
+/**
+ * SchemaForm renders an editable form based on a JSON Schema.
+ *
+ * This component uses path-based updates for all field changes. All updates
+ * are merged into the document using immutable path operations from the core package.
+ *
+ * Path format examples:
+ * - "name" - simple property
+ * - "user.email" - nested object
+ * - "items[0]" - array element
+ * - "users[0].name" - nested array object
+ *
+ * @see packages/core/src/path/operations.ts for path utilities
+ * @see packages/core/src/path/parser.ts for path parsing
+ */
 export function SchemaForm({ schema, value, onChange, globalExpandLevel }: SchemaFormProps) {
   // Use ref to always have latest value without recreating callback
   // Update synchronously during render to avoid stale values
@@ -130,8 +70,15 @@ export function SchemaForm({ schema, value, onChange, globalExpandLevel }: Schem
   valueRef.current = value;
 
   const handleFieldChange = useCallback(
-    (path: string, fieldValue: unknown) => {
+    (pathString: string, fieldValue: unknown) => {
+      // Convert string path to typed Path segments
+      // Example: "users[0].name" -> [{type:'property',key:'users'},{type:'index',index:0},{type:'property',key:'name'}]
+      const path = parsePath(pathString);
+
+      // Apply immutable update using core utilities
+      // This ensures arrays are properly handled (no "[0]" as property key!)
       const newValue = setValueAtPath(valueRef.current, path, fieldValue);
+
       onChange(newValue);
     },
     [onChange]
