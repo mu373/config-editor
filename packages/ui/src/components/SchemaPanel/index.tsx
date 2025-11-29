@@ -1,9 +1,5 @@
 import { useState, useMemo, useCallback, useRef } from 'react';
-import { PanelLeftClose, PanelLeft, TreeDeciduous, FormInput } from 'lucide-react';
-import { SchemaTree } from './SchemaTree';
 import { SchemaForm, type GlobalExpandLevel } from './SchemaForm';
-import { Button } from '../ui/button';
-import { ToggleGroup, ToggleGroupItem } from '../ui/toggle-group';
 import {
   Select,
   SelectContent,
@@ -19,29 +15,20 @@ interface SchemaPanelProps {
   schemaId?: string | null;
   schemas?: SchemaPreset[];
   onSchemaChange?: (schemaId: string) => void;
-  isCollapsed: boolean;
-  onToggleCollapse: () => void;
-  onFieldClick?: (path: string) => void;
   content: string;
   format: Format;
   onContentChange: (content: string) => void;
 }
-
-type ViewMode = 'tree' | 'form';
 
 export function SchemaPanel({
   schema,
   schemaId,
   schemas,
   onSchemaChange,
-  isCollapsed,
-  onToggleCollapse,
-  onFieldClick,
   content,
   format,
   onContentChange,
 }: SchemaPanelProps) {
-  const [viewMode, setViewMode] = useState<ViewMode>('form');
   const [parseError, setParseError] = useState<string | null>(null);
   const [globalExpandLevel, setGlobalExpandLevel] = useState<GlobalExpandLevel>(1);
   const lastValidValueRef = useRef<Record<string, unknown> | null>(null);
@@ -74,22 +61,6 @@ export function SchemaPanel({
     [format, onContentChange]
   );
 
-  if (isCollapsed) {
-    return (
-      <div className="h-full flex flex-col border-r border-border bg-background w-10">
-        <Button
-          variant="outline"
-          size="icon-sm"
-          onClick={onToggleCollapse}
-          className="m-1"
-          title="Expand Schema Panel"
-        >
-          <PanelLeft className="size-3.5" />
-        </Button>
-      </div>
-    );
-  }
-
   return (
     <div className="h-full flex flex-col border-r border-border bg-background">
       <div className="flex items-center justify-between px-3 h-10 border-b border-border bg-muted">
@@ -116,61 +87,35 @@ export function SchemaPanel({
               {schemas?.find((s) => s.id === schemaId)?.name || schemaId || 'Select schema...'}
             </span>
           )}
-          {viewMode === 'form' && (
-            <Select
-              value={globalExpandLevel === null ? 'auto' : String(globalExpandLevel)}
-              onValueChange={(val) => {
-                if (val === 'auto') {
-                  setGlobalExpandLevel(null);
-                } else if (val === 'all') {
-                  setGlobalExpandLevel('all');
-                } else {
-                  setGlobalExpandLevel(parseInt(val, 10));
-                }
-              }}
-            >
-              <SelectTrigger
-                size="sm"
-                className="h-7 text-xs px-2 text-muted-foreground bg-background"
-                title="Expand level"
-              >
-                <SelectValue placeholder="Auto" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="auto">Auto</SelectItem>
-                <SelectItem value="0">Root only</SelectItem>
-                <SelectItem value="1">Level 1</SelectItem>
-                <SelectItem value="2">Level 2</SelectItem>
-                <SelectItem value="3">Level 3</SelectItem>
-                <SelectItem value="all">All</SelectItem>
-              </SelectContent>
-            </Select>
-          )}
         </div>
-        <div className="flex items-center gap-1">
-          <ToggleGroup
-            type="single"
-            value={viewMode}
-            onValueChange={(value) => value && setViewMode(value as ViewMode)}
-            variant="outline"
+        <Select
+          value={globalExpandLevel === null ? 'auto' : String(globalExpandLevel)}
+          onValueChange={(val) => {
+            if (val === 'auto') {
+              setGlobalExpandLevel(null);
+            } else if (val === 'all') {
+              setGlobalExpandLevel('all');
+            } else {
+              setGlobalExpandLevel(parseInt(val, 10));
+            }
+          }}
+        >
+          <SelectTrigger
             size="sm"
+            className="h-7 text-xs px-2 text-muted-foreground bg-background"
+            title="Expand level"
           >
-            <ToggleGroupItem value="form" title="Form view">
-              <FormInput className="size-3.5" />
-            </ToggleGroupItem>
-            <ToggleGroupItem value="tree" title="Tree view">
-              <TreeDeciduous className="size-3.5" />
-            </ToggleGroupItem>
-          </ToggleGroup>
-          <Button
-            variant="outline"
-            size="icon-sm"
-            onClick={onToggleCollapse}
-            title="Collapse Schema Panel"
-          >
-            <PanelLeftClose className="size-3.5" />
-          </Button>
-        </div>
+            <SelectValue placeholder="Auto" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="auto">Auto</SelectItem>
+            <SelectItem value="0">Root only</SelectItem>
+            <SelectItem value="1">Level 1</SelectItem>
+            <SelectItem value="2">Level 2</SelectItem>
+            <SelectItem value="3">Level 3</SelectItem>
+            <SelectItem value="all">All</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {parseError && (
@@ -181,16 +126,12 @@ export function SchemaPanel({
 
       <div className="flex-1 overflow-auto">
         {schema ? (
-          viewMode === 'tree' ? (
-            <SchemaTree schema={schema} onFieldClick={onFieldClick} />
-          ) : (
-            <SchemaForm
-              schema={schema}
-              value={parsedValue}
-              onChange={handleFormChange}
-              globalExpandLevel={globalExpandLevel}
-            />
-          )
+          <SchemaForm
+            schema={schema}
+            value={parsedValue}
+            onChange={handleFormChange}
+            globalExpandLevel={globalExpandLevel}
+          />
         ) : (
           <div className="p-4 text-sm text-muted-foreground">No schema loaded</div>
         )}
@@ -199,6 +140,5 @@ export function SchemaPanel({
   );
 }
 
-export { SchemaTree } from './SchemaTree';
 export { SchemaForm } from './SchemaForm';
 export { FormField } from './FormField';

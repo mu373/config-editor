@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useCallback } from 'react';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import { Editor } from './Editor';
 import { SchemaPanel } from './SchemaPanel';
@@ -14,15 +14,9 @@ interface EditorLayoutProps {
 }
 
 export function EditorLayout({ schemas, onNewTab }: EditorLayoutProps) {
-  const [isPanelCollapsed, setIsPanelCollapsed] = useState(false);
   const { tabs, activeTabId, setContent, setSchema } = useEditorStore();
   const { schemasView } = useSchemaStore();
   const activeTab = tabs.find((t) => t.id === activeTabId);
-
-  const handleFieldClick = useCallback((path: string) => {
-    // For now, just log the path
-    console.log('Field clicked:', path);
-  }, []);
 
   const handleContentChange = useCallback(
     (newContent: string) => {
@@ -59,49 +53,23 @@ export function EditorLayout({ schemas, onNewTab }: EditorLayoutProps) {
   return (
     <div className="h-full">
       <PanelGroup direction="horizontal" autoSaveId="editor-layout">
-        {!isPanelCollapsed && (
-          <>
-            <Panel
-              defaultSize={30}
-              minSize={20}
-              maxSize={50}
-              collapsible
-              onCollapse={() => setIsPanelCollapsed(true)}
-            >
-              <SchemaPanel
-                schema={schema}
-                schemaId={activeTab?.schemaId}
-                schemas={schemas}
-                onSchemaChange={handleSchemaChange}
-                isCollapsed={isPanelCollapsed}
-                onToggleCollapse={() => setIsPanelCollapsed(!isPanelCollapsed)}
-                onFieldClick={handleFieldClick}
-                content={activeTab?.content ?? ''}
-                format={activeTab?.format ?? 'yaml'}
-                onContentChange={handleContentChange}
-              />
-            </Panel>
-            <PanelResizeHandle className="w-1 bg-border hover:bg-ring transition-colors cursor-col-resize" />
-          </>
-        )}
-
-        {isPanelCollapsed && (
-          <div className="h-full flex flex-col border-r border-border bg-background w-10 flex-shrink-0">
-            <SchemaPanel
-              schema={schema}
-              schemaId={activeTab?.schemaId}
-              schemas={schemas}
-              onSchemaChange={handleSchemaChange}
-              isCollapsed={true}
-              onToggleCollapse={() => setIsPanelCollapsed(false)}
-              content={activeTab?.content ?? ''}
-              format={activeTab?.format ?? 'yaml'}
-              onContentChange={handleContentChange}
-            />
-          </div>
-        )}
-
-        <Panel defaultSize={isPanelCollapsed ? 100 : 70} minSize={50}>
+        <Panel
+          defaultSize={30}
+          minSize={15}
+          maxSize={50}
+        >
+          <SchemaPanel
+            schema={schema}
+            schemaId={activeTab?.schemaId}
+            schemas={schemas}
+            onSchemaChange={handleSchemaChange}
+            content={activeTab?.content ?? ''}
+            format={activeTab?.format ?? 'yaml'}
+            onContentChange={handleContentChange}
+          />
+        </Panel>
+        <PanelResizeHandle className="w-1 bg-border hover:bg-ring transition-colors cursor-col-resize" />
+        <Panel defaultSize={70} minSize={50}>
           <Editor />
         </Panel>
       </PanelGroup>
