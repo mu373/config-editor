@@ -35,7 +35,7 @@ describe('resolveRef', () => {
   });
 
   it('should resolve nested $ref paths', () => {
-    const rootSchema: JSONSchema7 = {
+    const rootSchema: any = {
       definitions: {
         nested: {
           deep: {
