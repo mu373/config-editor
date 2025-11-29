@@ -120,7 +120,7 @@ export function Editor() {
     editor.setScrollTop(scrollTop);
 
     isUpdatingFromStoreRef.current = false;
-  }, [activeTabContent]);
+  }, [activeTab?.content]);
 
   const handleChange = (value: string | undefined) => {
     if (value !== undefined) {
