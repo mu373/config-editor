@@ -1,8 +1,9 @@
-import { X, Menu, Settings, Download, FilePlus, FolderOpen, Cog } from 'lucide-react';
+import { X, Menu, Settings, Download, FilePlus, FolderOpen, Cog, Link } from 'lucide-react';
 import { useEditorStore, type Tab, SCHEMAS_TAB_ID, SETTINGS_TAB_ID } from '../store/editorStore';
 import { useSettingsStore, type ActiveView } from '../store/settingsStore';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { detectFormat, type JSONSchema, type SchemaPreset } from '@config-editor/core';
+import { LoadFromUrlDialog } from './LoadFromUrlDialog';
 import {
   DndContext,
   closestCenter,
@@ -122,6 +123,7 @@ export function TabBar({
     openSettingsTab,
     closeSettingsTab,
   } = useSettingsStore();
+  const [urlDialogOpen, setUrlDialogOpen] = useState(false);
 
   // Add/remove special tabs from tabOrder when they open/close
   useEffect(() => {
@@ -206,6 +208,47 @@ export function TabBar({
     URL.revokeObjectURL(url);
   };
 
+  const convertGitHubUrlToRaw = (url: string): string => {
+    // Convert GitHub URLs to raw content URLs
+    // https://github.com/user/repo/blob/branch/path/file.yml
+    // -> https://raw.githubusercontent.com/user/repo/refs/heads/branch/path/file.yml
+    const githubBlobPattern = /^https?:\/\/github\.com\/([^/]+)\/([^/]+)\/blob\/([^/]+)\/(.+)$/;
+    const match = url.match(githubBlobPattern);
+
+    if (match) {
+      const [, user, repo, branch, path] = match;
+      return `https://raw.githubusercontent.com/${user}/${repo}/refs/heads/${branch}/${path}`;
+    }
+
+    return url;
+  };
+
+  const handleLoadFromUrl = async (url: string, schemaId: string | null) => {
+    const rawUrl = convertGitHubUrlToRaw(url);
+    const response = await fetch(rawUrl);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch: ${response.status} ${response.statusText}`);
+    }
+
+    const text = await response.text();
+    const detected = detectFormat(text);
+
+    const fileName = url.split('/').pop() || 'untitled';
+
+    const selectedSchema = schemaId
+      ? schemas.find((s) => s.id === schemaId)
+      : null;
+
+    addTab({
+      fileName,
+      content: text,
+      format: detected,
+      schema: selectedSchema?.schema ?? null,
+      schemaId: selectedSchema?.id ?? null,
+      isDirty: false,
+    });
+  };
+
   const handleCloseTab = (
     e: React.MouseEvent,
     tabId: string,
@@ -222,9 +265,16 @@ export function TabBar({
   };
 
   return (
-    <div className="flex items-center border-b border-border bg-muted min-h-[40px]">
-      {/* Hamburger Menu */}
-      <Menubar className="border-0 rounded-none bg-transparent shadow-none h-auto p-0">
+    <>
+      <LoadFromUrlDialog
+        onLoadUrl={handleLoadFromUrl}
+        schemas={schemas}
+        open={urlDialogOpen}
+        onOpenChange={setUrlDialogOpen}
+      />
+      <div className="flex items-center border-b border-border bg-muted min-h-[40px]">
+        {/* Hamburger Menu */}
+        <Menubar className="border-0 rounded-none bg-transparent shadow-none h-auto p-0">
         <MenubarMenu>
           <MenubarTrigger className="px-3 py-2 rounded-none border-r border-border data-[state=open]:bg-accent">
             <Menu className="size-4" />
@@ -264,6 +314,10 @@ export function TabBar({
             <MenubarItem onClick={handleOpenFile}>
               <FolderOpen className="size-4" />
               Open File...
+            </MenubarItem>
+            <MenubarItem onClick={() => setUrlDialogOpen(true)}>
+              <Link className="size-4" />
+              Load from URL...
             </MenubarItem>
             <MenubarItem onClick={handleDownload} disabled={!activeTabId}>
               <Download className="size-4" />
@@ -349,6 +403,7 @@ export function TabBar({
           </SortableContext>
         </DndContext>
       </div>
-    </div>
+      </div>
+    </>
   );
 }

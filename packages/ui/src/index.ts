@@ -4,6 +4,8 @@ export * from './components/EditorLayout';
 export * from './components/SchemaPanel';
 export * from './components/SchemasTab';
 export * from './components/SettingsTab';
+export * from './components/LoadFromUrlDialog';
+export * from './components/ui/dialog';
 export * from './store/editorStore';
 export * from './store/schemaStore';
 export * from './store/settingsStore';
