@@ -31,8 +31,8 @@ Use **config-editor** whenever you want to edit **JSON/YAML config** files and b
 
 Try out the editor with bundled sample configurations:
 
-- [GitHub Actions Workflow](https://config-editor.vercel.app/?openSample=github-workflow)
-- [Docker Compose](https://config-editor.vercel.app/?openSample=docker-compose)
+- <a href="https://config-editor.vercel.app/?openSample=github-workflow" target="_blank" rel="noopener noreferrer">GitHub Actions Workflow</a>
+- <a href="https://config-editor.vercel.app/?openSample=docker-compose" target="_blank" rel="noopener noreferrer">Docker Compose</a>
 
 
 ## Project Structure
