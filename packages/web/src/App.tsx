@@ -4,8 +4,10 @@ import {
   TabBar,
   useEditorStore,
   useSchemaStore,
+  useSettingsStore,
 } from '@config-editor/ui';
 import type { SchemaPreset } from '@config-editor/core';
+
 
 const schemaDefaults: Record<
   string,
@@ -115,16 +117,16 @@ export default function App() {
     schemas: schemaPresets,
     hydrateFromStorage,
     mergeBundledSchemas,
-    schemasView,
-    setSchemasView,
   } = useSchemaStore();
+  const { hydrateFromStorage: hydrateSettings } = useSettingsStore();
   const [isLoading, setIsLoading] = useState(true);
 
-  // Hydrate schemas on mount
+  // Hydrate schemas and settings on mount
   useEffect(() => {
     async function initSchemas() {
       // First hydrate from localStorage
       hydrateFromStorage();
+      hydrateSettings();
 
       // Then load bundled schemas and merge (won't overwrite user schemas)
       const bundled = await loadBundledSchemas();
@@ -135,7 +137,7 @@ export default function App() {
       setIsLoading(false);
     }
     initSchemas();
-  }, [hydrateFromStorage, mergeBundledSchemas]);
+  }, [hydrateFromStorage, hydrateSettings, mergeBundledSchemas]);
 
   const handleNewTab = useCallback(
     (schemaId: string) => {
@@ -156,10 +158,6 @@ export default function App() {
     [addTab, schemaPresets]
   );
 
-  const handleManageSchemas = useCallback(() => {
-    setSchemasView(schemasView === 'edit' ? 'list' : 'edit');
-  }, [schemasView, setSchemasView]);
-
   const defaultPreset = schemaPresets[0];
 
   if (isLoading) {
@@ -175,8 +173,6 @@ export default function App() {
       <TabBar
         schemas={schemaPresets}
         onNewTab={handleNewTab}
-        onManageSchemas={handleManageSchemas}
-        schemasViewActive={schemasView === 'edit'}
         defaultSchema={defaultPreset?.schema ?? null}
         defaultSchemaId={defaultPreset?.id ?? null}
       />

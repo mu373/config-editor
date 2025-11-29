@@ -3,8 +3,9 @@ import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import { Editor } from './Editor';
 import { SchemaPanel } from './SchemaPanel';
 import { SchemasTab } from './SchemasTab';
+import { SettingsTab } from './SettingsTab';
 import { useEditorStore } from '../store/editorStore';
-import { useSchemaStore } from '../store/schemaStore';
+import { useSettingsStore } from '../store/settingsStore';
 import type { JSONSchema7 } from 'json-schema';
 import type { SchemaPreset } from '@config-editor/core';
 
@@ -15,7 +16,7 @@ interface EditorLayoutProps {
 
 export function EditorLayout({ schemas, onNewTab }: EditorLayoutProps) {
   const { tabs, activeTabId, setContent, setSchema } = useEditorStore();
-  const { schemasView } = useSchemaStore();
+  const { activeView } = useSettingsStore();
   const activeTab = tabs.find((t) => t.id === activeTabId);
 
   const handleContentChange = useCallback(
@@ -45,8 +46,13 @@ export function EditorLayout({ schemas, onNewTab }: EditorLayoutProps) {
 
   const schema = activeTab?.schema as JSONSchema7 | null;
 
-  // Show SchemasTab when schemasView is 'edit'
-  if (schemasView === 'edit') {
+  // Show SettingsTab when activeView is 'settings'
+  if (activeView === 'settings') {
+    return <SettingsTab />;
+  }
+
+  // Show SchemasTab when activeView is 'schemas'
+  if (activeView === 'schemas') {
     return <SchemasTab />;
   }
 

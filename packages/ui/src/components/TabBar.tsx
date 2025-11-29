@@ -1,5 +1,6 @@
-import { X, Menu, Settings, Download, FilePlus, FolderOpen } from 'lucide-react';
+import { X, Menu, Settings, Download, FilePlus, FolderOpen, Cog } from 'lucide-react';
 import { useEditorStore } from '../store/editorStore';
+import { useSettingsStore, type ActiveView } from '../store/settingsStore';
 import { detectFormat, type JSONSchema, type SchemaPreset } from '@config-editor/core';
 import {
   Menubar,
@@ -16,8 +17,6 @@ import {
 interface TabBarProps {
   schemas: SchemaPreset[];
   onNewTab: (schemaId: string) => void;
-  onManageSchemas?: () => void;
-  schemasViewActive?: boolean;
   defaultSchema?: JSONSchema | null;
   defaultSchemaId?: string | null;
 }
@@ -25,12 +24,20 @@ interface TabBarProps {
 export function TabBar({
   schemas,
   onNewTab,
-  onManageSchemas,
-  schemasViewActive,
   defaultSchema,
   defaultSchemaId,
 }: TabBarProps) {
   const { tabs, activeTabId, setActiveTab, closeTab, addTab } = useEditorStore();
+  const {
+    activeView,
+    setActiveView,
+    schemasTabOpen,
+    settingsTabOpen,
+    openSchemasTab,
+    closeSchemasTab,
+    openSettingsTab,
+    closeSettingsTab,
+  } = useSettingsStore();
 
   const handleOpenFile = () => {
     const input = document.createElement('input');
@@ -120,15 +127,15 @@ export function TabBar({
               <Download className="size-4" />
               Download
             </MenubarItem>
-            {onManageSchemas && (
-              <>
-                <MenubarSeparator />
-                <MenubarItem onClick={onManageSchemas}>
-                  <Settings className="size-4" />
-                  Manage Schemas...
-                </MenubarItem>
-              </>
-            )}
+            <MenubarSeparator />
+            <MenubarItem onClick={openSchemasTab}>
+              <Settings className="size-4" />
+              Manage Schemas...
+            </MenubarItem>
+            <MenubarItem onClick={openSettingsTab}>
+              <Cog className="size-4" />
+              Settings...
+            </MenubarItem>
           </MenubarContent>
         </MenubarMenu>
       </Menubar>
@@ -138,9 +145,12 @@ export function TabBar({
         {tabs.map((tab) => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
+            onClick={() => {
+              setActiveTab(tab.id);
+              setActiveView('editor');
+            }}
             className={`flex items-center gap-2 px-3 py-2 text-sm border-r border-border min-w-[120px] max-w-[200px] group ${
-              tab.id === activeTabId && !schemasViewActive
+              tab.id === activeTabId && activeView === 'editor'
                 ? 'bg-background text-foreground border-b-2 border-b-primary'
                 : 'text-muted-foreground hover:bg-accent'
             }`}
@@ -161,19 +171,47 @@ export function TabBar({
         ))}
 
         {/* Schemas Tab */}
-        {schemasViewActive && (
+        {schemasTabOpen && (
           <button
-            onClick={onManageSchemas}
-            className="flex items-center gap-2 px-3 py-2 text-sm border-r border-border min-w-[120px] max-w-[200px] bg-background text-foreground border-b-2 border-b-primary"
+            onClick={() => setActiveView('schemas')}
+            className={`flex items-center gap-2 px-3 py-2 text-sm border-r border-border min-w-[120px] max-w-[200px] group ${
+              activeView === 'schemas'
+                ? 'bg-background text-foreground border-b-2 border-b-primary'
+                : 'text-muted-foreground hover:bg-accent'
+            }`}
           >
             <Settings className="w-4 h-4" />
             <span className="truncate flex-1 text-left">Schemas</span>
             <span
               onClick={(e) => {
                 e.stopPropagation();
-                onManageSchemas?.();
+                closeSchemasTab();
               }}
-              className="p-0.5 rounded hover:bg-accent"
+              className="p-0.5 rounded hover:bg-accent opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+            >
+              <X className="w-3 h-3" />
+            </span>
+          </button>
+        )}
+
+        {/* Settings Tab */}
+        {settingsTabOpen && (
+          <button
+            onClick={() => setActiveView('settings')}
+            className={`flex items-center gap-2 px-3 py-2 text-sm border-r border-border min-w-[120px] max-w-[200px] group ${
+              activeView === 'settings'
+                ? 'bg-background text-foreground border-b-2 border-b-primary'
+                : 'text-muted-foreground hover:bg-accent'
+            }`}
+          >
+            <Cog className="w-4 h-4" />
+            <span className="truncate flex-1 text-left">Settings</span>
+            <span
+              onClick={(e) => {
+                e.stopPropagation();
+                closeSettingsTab();
+              }}
+              className="p-0.5 rounded hover:bg-accent opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
             >
               <X className="w-3 h-3" />
             </span>

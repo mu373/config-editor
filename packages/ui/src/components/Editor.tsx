@@ -4,6 +4,7 @@ import { configureMonacoYaml } from 'monaco-yaml';
 import type { editor } from 'monaco-editor';
 import { Download } from 'lucide-react';
 import { useEditorStore } from '../store/editorStore';
+import { useSettingsStore } from '../store/settingsStore';
 import { ToggleGroup, ToggleGroupItem } from './ui/toggle-group';
 import { Button } from './ui/button';
 import {
@@ -16,6 +17,7 @@ import {
 
 export function Editor() {
   const { tabs, activeTabId, setContent, setFormat, markClean } = useEditorStore();
+  const { settings } = useSettingsStore();
   const activeTab = tabs.find((t) => t.id === activeTabId);
 
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
@@ -153,7 +155,7 @@ export function Editor() {
             tabSize: 2,
             automaticLayout: true,
           }}
-          theme="vs-light"
+          theme={settings.monacoTheme}
         />
       </div>
     </div>

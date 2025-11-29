@@ -5,7 +5,6 @@ const STORAGE_KEY = 'config-editor:schemas';
 
 export interface SchemaStoreState {
   schemas: SchemaPreset[];
-  schemasView: 'list' | 'edit';
   selectedSchemaId: string | null;
 }
 
@@ -17,7 +16,6 @@ export interface SchemaStoreActions {
   setSchemas: (schemas: SchemaPreset[]) => void;
   mergeBundledSchemas: (bundled: SchemaPreset[]) => void;
   setSelectedSchemaId: (id: string | null) => void;
-  setSchemasView: (view: 'list' | 'edit') => void;
   hydrateFromStorage: () => void;
 }
 
@@ -45,7 +43,6 @@ function loadFromStorage(): SchemaPreset[] {
 
 export const useSchemaStore = create<SchemaStore>((set, get) => ({
   schemas: [],
-  schemasView: 'list',
   selectedSchemaId: null,
 
   addSchema: (schema) => {
@@ -125,10 +122,6 @@ export const useSchemaStore = create<SchemaStore>((set, get) => ({
 
   setSelectedSchemaId: (id) => {
     set({ selectedSchemaId: id });
-  },
-
-  setSchemasView: (view) => {
-    set({ schemasView: view });
   },
 
   hydrateFromStorage: () => {
