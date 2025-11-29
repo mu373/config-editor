@@ -314,7 +314,7 @@ export function VariantField({
   // At deeper levels, children render inside the content area (indented)
   if (depth === 0) {
     return (
-      <div className={isArrayItem ? '' : 'py-2'}>
+      <div data-field-path={path} className={isArrayItem ? '' : 'py-2'}>
         {/* Header row: label | variant selector + inline input for primitives */}
         <div className={`flex items-center gap-3 ${isArrayItem ? 'h-7' : ''}`}>
           <FieldLabel name={name} title={title} required={required} className={`flex-shrink-0 ${isArrayItem ? '' : 'w-48'}`} />
@@ -370,7 +370,7 @@ export function VariantField({
 
   // Deeper levels: children inside content area (indented)
   return (
-    <div className={isArrayItem ? '' : 'py-2'}>
+    <div data-field-path={path} className={isArrayItem ? '' : 'py-2'}>
       {/* Header row: label | variant selector + inline input for primitives */}
       <div className={`flex items-center gap-3 ${isArrayItem ? 'h-7' : ''}`}>
         <FieldLabel name={name} title={title} required={required} className={`flex-shrink-0 ${isArrayItem ? '' : 'w-48'}`} />

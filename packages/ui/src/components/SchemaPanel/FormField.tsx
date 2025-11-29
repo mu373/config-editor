@@ -11,7 +11,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../ui/select';
-import { Input } from '../ui/input';
+import { BufferedInput } from '../ui/input';
+import { useTreeStore } from '../../store/treeStore';
 
 // Shared component for field descriptions
 // When inline=true (for fields with input/select), aligned under the input: ml = w-48 (12rem) + gap-3 (0.75rem) = 12.75rem
@@ -196,43 +197,24 @@ export function FormField({
   summaryLabel,
   globalExpandLevel = null,
 }: FormFieldProps) {
-  // Track if user has manually toggled this field
-  const [hasBeenManuallyToggled, setHasBeenManuallyToggled] = useState(false);
-  const [isExpandedLocal, setIsExpandedLocal] = useState(() => depth < 2);
-
-  // Calculate whether this field should be expanded based on globalExpandLevel
-  const shouldExpandByLevel = (level: GlobalExpandLevel | null) => {
-    if (level === 'all') return true;
-    if (level !== null && level !== undefined) {
-      return depth < level;
-    }
-    return null; // null means no opinion from global level
-  };
-
-  // When globalExpandLevel changes, update expansion state
-  // but only if user hasn't manually toggled this field
-  // Skip if this component is controlled by parent (parent handles its own logic)
-  useEffect(() => {
-    if (hasBeenManuallyToggled) return; // Respect manual toggles
-    if (isExpandedControlled !== undefined) return; // Skip controlled components
-
-    const shouldExpand = shouldExpandByLevel(globalExpandLevel);
-    if (shouldExpand !== null) {
-      setIsExpandedLocal(shouldExpand);
-    }
-  }, [globalExpandLevel, hasBeenManuallyToggled, depth, isExpandedControlled]);
+  // Use treeStore for form expansion state
+  // Subscribe to manuallyToggledFormPaths to trigger re-renders when paths are expanded via navigation
+  const { isFormPathExpanded, toggleFormPath, manuallyToggledFormPaths } = useTreeStore();
 
   // Determine expanded state:
   // 1. If controlled by parent (isExpandedControlled), use that
-  // 2. Otherwise use local state
-  const isExpanded = isExpandedControlled !== undefined ? isExpandedControlled : isExpandedLocal;
+  // 2. Otherwise use treeStore
+  // Note: We reference manuallyToggledFormPaths.has(path) to ensure reactivity
+  const _isManuallyToggled = manuallyToggledFormPaths.has(path);
+  const isExpanded = isExpandedControlled !== undefined
+    ? isExpandedControlled
+    : isFormPathExpanded(path, depth, globalExpandLevel);
 
   const setIsExpanded = (expanded: boolean) => {
-    setHasBeenManuallyToggled(true); // Mark as manually toggled
     if (onExpandedChange) {
       onExpandedChange(expanded);
     } else {
-      setIsExpandedLocal(expanded);
+      toggleFormPath(path);
     }
   };
 
@@ -381,7 +363,7 @@ export function FormField({
     const NONE_VALUE = '__none__';
     const isArrayItem = /^\[\d+\]$/.test(name);
     return (
-      <div className={isArrayItem ? '' : 'py-2'}>
+      <div data-field-path={path} className={isArrayItem ? '' : 'py-2'}>
         <div className={`flex items-center gap-3 ${isArrayItem ? 'h-7' : ''}`}>
           <FieldLabel name={name} title={title} required={required} summaryLabel={summaryLabel} className={`flex-shrink-0 ${isArrayItem ? '' : 'w-48'}`} />
           <div className="flex-1 min-w-0">
@@ -420,11 +402,6 @@ export function FormField({
     // Convert value to HTML input format for date/datetime
     let inputValue = '';
 
-    // Debug logging
-    if (isDate || isDateTime) {
-      console.log('[FormField] Date/DateTime value:', { value, type: typeof value, isDate: value instanceof Date });
-    }
-
     if (value instanceof Date) {
       // Value is already a Date object
       if (isDate) {
@@ -437,7 +414,6 @@ export function FormField({
         const minutes = String(value.getMinutes()).padStart(2, '0');
         inputValue = `${year}-${month}-${day}T${hours}:${minutes}`;
       }
-      console.log('[FormField] Converted Date object to:', inputValue);
     } else if (typeof value === 'string') {
       // Value is a string, try to parse it
       if (isDate && value) {
@@ -473,11 +449,11 @@ export function FormField({
     }
 
     return (
-      <div className={isArrayItem ? '' : 'py-2'}>
+      <div data-field-path={path} className={isArrayItem ? '' : 'py-2'}>
         <div className={`flex items-center gap-3 ${isArrayItem ? 'h-7' : ''}`}>
           <FieldLabel name={name} title={title} required={required} summaryLabel={summaryLabel} className={`flex-shrink-0 ${isArrayItem ? '' : 'w-48'}`} />
           <div className="flex-1 min-w-0">
-            <Input
+            <BufferedInput
               type={inputType}
               size="sm"
               value={inputValue}
@@ -493,11 +469,14 @@ export function FormField({
     );
   }
 
-  // Handle number/integer type
+  // Handle number/integer type - use text input to avoid browser number input quirks
   if (schemaType === 'number' || schemaType === 'integer') {
     const isArrayItem = /^\[\d+\]$/.test(name);
+    // Convert to string for display, keeping empty string for null/undefined
+    const stringValue = value === null || value === undefined ? '' : String(value);
+
     return (
-      <div className={isArrayItem ? '' : 'py-2'}>
+      <div data-field-path={path} className={isArrayItem ? '' : 'py-2'}>
         <div className={`flex items-center gap-3 ${isArrayItem ? 'h-7' : ''}`}>
           <div className={`flex-shrink-0 ${isArrayItem ? '' : 'w-48'}`}>
             <FieldLabel name={name} title={title} required={required} summaryLabel={summaryLabel} />
@@ -508,21 +487,23 @@ export function FormField({
             )}
           </div>
           <div className="flex-1 min-w-0">
-            <Input
-              type="number"
+            <BufferedInput
+              type="text"
+              inputMode="decimal"
               size="sm"
-              value={(value as number) ?? ''}
+              value={stringValue}
               onChange={(e) => {
                 const val = e.target.value;
                 if (val === '') {
                   onChange(path, nullable ? null : 0);
                 } else {
-                  onChange(path, schemaType === 'integer' ? parseInt(val) : parseFloat(val));
+                  const num = schemaType === 'integer' ? parseInt(val, 10) : parseFloat(val);
+                  // Only update if it's a valid number
+                  if (!isNaN(num)) {
+                    onChange(path, num);
+                  }
                 }
               }}
-              min={effectiveSchema.minimum}
-              max={effectiveSchema.maximum}
-              step={schemaType === 'integer' ? 1 : 'any'}
             />
           </div>
         </div>
@@ -537,7 +518,7 @@ export function FormField({
   if (schemaType === 'boolean') {
     const isArrayItem = /^\[\d+\]$/.test(name);
     return (
-      <div className={isArrayItem ? '' : 'py-2'}>
+      <div data-field-path={path} className={isArrayItem ? '' : 'py-2'}>
         <div className={`flex items-center gap-3 ${isArrayItem ? 'h-7' : ''}`}>
           <FieldLabel name={name} title={title} required={required} summaryLabel={summaryLabel} className={`flex-shrink-0 ${isArrayItem ? '' : 'w-48'}`} />
           <div className="flex-1 min-w-0">
@@ -576,21 +557,26 @@ export function FormField({
     );
   }
 
-  // Handle dictionary/map type (object with additionalProperties but no fixed properties)
-  if (schemaType === 'object' && effectiveSchema.additionalProperties && typeof effectiveSchema.additionalProperties === 'object' && !effectiveSchema.properties) {
-    return (
-      <DictionaryField
-        name={name}
-        schema={effectiveSchema}
-        value={(value as Record<string, unknown>) ?? {}}
-        path={path}
-        required={required}
-        onChange={onChange}
-        depth={depth}
-        rootSchema={rootSchema}
-        globalExpandLevel={globalExpandLevel}
-              />
-    );
+  // Handle dictionary/map type (object with additionalProperties or patternProperties but no fixed properties)
+  if (schemaType === 'object' && !effectiveSchema.properties) {
+    const hasAdditionalProps = effectiveSchema.additionalProperties && typeof effectiveSchema.additionalProperties === 'object';
+    const hasPatternProps = effectiveSchema.patternProperties && typeof effectiveSchema.patternProperties === 'object';
+
+    if (hasAdditionalProps || hasPatternProps) {
+      return (
+        <DictionaryField
+          name={name}
+          schema={effectiveSchema}
+          value={(value as Record<string, unknown>) ?? {}}
+          path={path}
+          required={required}
+          onChange={onChange}
+          depth={depth}
+          rootSchema={rootSchema}
+          globalExpandLevel={globalExpandLevel}
+                />
+      );
+    }
   }
 
   // Handle object type
@@ -602,7 +588,7 @@ export function FormField({
     const isArrayItem = /^\[\d+\]$/.test(name);
     if (depth === 0) {
       return (
-        <div className={isArrayItem ? '' : 'py-2'}>
+        <div data-field-path={path} className={isArrayItem ? '' : 'py-2'}>
           {/* Header row: label with chevron */}
           <div
             className={`flex items-center gap-1 cursor-pointer ${isArrayItem ? 'h-7' : 'h-6'}`}
@@ -645,7 +631,7 @@ export function FormField({
 
     // Deeper levels: children inside content area (indented)
     return (
-      <div className={isArrayItem ? '' : 'py-2'}>
+      <div data-field-path={path} className={isArrayItem ? '' : 'py-2'}>
         {/* Header row: label with chevron */}
         <div
           className={`flex items-center gap-1 cursor-pointer ${isArrayItem ? 'h-7' : ''}`}
@@ -696,11 +682,11 @@ export function FormField({
 
   const isArrayItem = /^\[\d+\]$/.test(name);
   return (
-    <div className={isArrayItem ? '' : 'py-2'}>
+    <div data-field-path={path} className={isArrayItem ? '' : 'py-2'}>
       <div className={`flex items-center gap-3 ${isArrayItem ? 'h-7' : ''}`}>
         <FieldLabel name={name} title={title} required={required} summaryLabel={summaryLabel} className={`flex-shrink-0 ${isArrayItem ? '' : 'w-48'}`} />
         <div className="flex-1 min-w-0">
-          <Input
+          <BufferedInput
             type="text"
             size="sm"
             value={stringValue}

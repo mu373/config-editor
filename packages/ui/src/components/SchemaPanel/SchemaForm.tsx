@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useRef, useEffect } from 'react';
 import type { JSONSchema7 } from 'json-schema';
 import { FormField } from './FormField';
 import { Plus, Trash2 } from 'lucide-react';
@@ -124,30 +124,35 @@ function OptionalField({ name, schema, rootSchema, onAdd }: OptionalFieldProps) 
 }
 
 export function SchemaForm({ schema, value, onChange, globalExpandLevel }: SchemaFormProps) {
+  // Use ref to always have latest value without recreating callback
+  // Update synchronously during render to avoid stale values
+  const valueRef = useRef(value);
+  valueRef.current = value;
+
   const handleFieldChange = useCallback(
     (path: string, fieldValue: unknown) => {
-      const newValue = setValueAtPath(value, path, fieldValue);
+      const newValue = setValueAtPath(valueRef.current, path, fieldValue);
       onChange(newValue);
     },
-    [value, onChange]
+    [onChange]
   );
 
   const handleDeleteField = useCallback(
     (key: string) => {
-      const newValue = { ...value };
+      const newValue = { ...valueRef.current };
       delete newValue[key];
       onChange(newValue);
     },
-    [value, onChange]
+    [onChange]
   );
 
   const handleAddField = useCallback(
     (key: string, propSchema: JSONSchema7) => {
       const defaultVal = getDefaultValue(propSchema, schema);
-      const newValue = { ...value, [key]: defaultVal };
+      const newValue = { ...valueRef.current, [key]: defaultVal };
       onChange(newValue);
     },
-    [value, onChange, schema]
+    [onChange, schema]
   );
 
   const properties = schema.properties;

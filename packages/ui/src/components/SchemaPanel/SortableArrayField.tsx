@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import type { JSONSchema7 } from 'json-schema';
 import { FormField, FieldDescription, ChildrenContainer, FieldLabel, ConfirmDeleteButton, type GlobalExpandLevel } from './FormField';
+import { useTreeStore } from '../../store/treeStore';
 
 interface SortableItemProps {
   id: string;
@@ -168,32 +169,32 @@ export function SortableArrayField({
 }: SortableArrayFieldProps) {
   const items = value ?? [];
 
-  // Track if user has manually toggled this field
-  const [hasBeenManuallyToggled, setHasBeenManuallyToggled] = useState(false);
-  const [isExpandedLocal, setIsExpandedLocal] = useState(() => depth < 2);
+  // Use treeStore for form expansion state
+  // Subscribe to manuallyToggledFormPaths to trigger re-renders when paths are expanded via navigation
+  const { isFormPathExpanded, toggleFormPath, manuallyToggledFormPaths, expandedFormPaths, selectedPath } = useTreeStore();
+  const _isManuallyToggled = manuallyToggledFormPaths.has(path);
+
   const [expandedItems, setExpandedItems] = useState<Set<number>>(new Set());
   // Track which array items have been manually toggled (by index)
   const [manuallyToggledItems, setManuallyToggledItems] = useState<Set<number>>(new Set());
 
-  // Calculate whether this field should be expanded based on globalExpandLevel
-  const shouldExpandByLevel = (level: GlobalExpandLevel | null) => {
-    if (level === 'all') return true;
-    if (level !== null && level !== undefined) {
-      return depth < level;
-    }
-    return null; // null means no opinion from global level
-  };
-
-  // When globalExpandLevel changes, update expansion state
-  // but only if user hasn't manually toggled this field
+  // Sync with treeStore: when navigation selects an array item path, expand it locally
   useEffect(() => {
-    if (hasBeenManuallyToggled) return;
-
-    const shouldExpand = shouldExpandByLevel(globalExpandLevel);
-    if (shouldExpand !== null) {
-      setIsExpandedLocal(shouldExpand);
+    if (!selectedPath) return;
+    // Check if selectedPath is a child of this array (e.g., "scenarios[0]" or "scenarios[0].name")
+    const arrayItemMatch = selectedPath.match(new RegExp(`^${path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\[(\\d+)\\]`));
+    if (arrayItemMatch) {
+      const index = parseInt(arrayItemMatch[1], 10);
+      if (index >= 0 && index < items.length) {
+        setExpandedItems(prev => {
+          if (prev.has(index)) return prev;
+          const next = new Set(prev);
+          next.add(index);
+          return next;
+        });
+      }
     }
-  }, [globalExpandLevel, hasBeenManuallyToggled, depth]);
+  }, [selectedPath, path, items.length]);
 
   // When globalExpandLevel changes, update array item expansion states
   // but only for items that haven't been manually toggled
@@ -220,11 +221,10 @@ export function SortableArrayField({
     });
   }, [globalExpandLevel, items.length, depth, manuallyToggledItems]);
 
-  const isExpanded = isExpandedLocal;
+  const isExpanded = isFormPathExpanded(path, depth, globalExpandLevel);
 
-  const setIsExpanded = (expanded: boolean) => {
-    setHasBeenManuallyToggled(true);
-    setIsExpandedLocal(expanded);
+  const setIsExpanded = () => {
+    toggleFormPath(path);
   };
   const itemSchema = schema.items as JSONSchema7;
   const resolvedItemSchema = rootSchema
@@ -382,12 +382,12 @@ export function SortableArrayField({
   // At deeper levels, children render inside the content area (indented)
   if (depth === 0) {
     return (
-      <div className="py-2">
+      <div data-field-path={path} className="py-2">
         {/* Header row: label with chevron | count and controls */}
         <div className="flex items-center gap-3 h-6">
           <div
             className="flex items-center gap-1 cursor-pointer"
-            onClick={() => setIsExpanded(!isExpanded)}
+            onClick={setIsExpanded}
           >
             <FieldLabel name={name} title={title} required={required} as="span" />
             {isExpanded ? (
@@ -490,12 +490,12 @@ export function SortableArrayField({
 
   // Deeper levels: children inside content area (indented)
   return (
-    <div className="py-2">
+    <div data-field-path={path} className="py-2">
       {/* Header row: label with chevron | count and controls */}
       <div className="flex items-center gap-3 h-6">
         <div
           className="flex items-center gap-1 cursor-pointer"
-          onClick={() => setIsExpanded(!isExpanded)}
+          onClick={setIsExpanded}
         >
           <FieldLabel name={name} title={title} required={required} as="span" />
           {isExpanded ? (

@@ -5,6 +5,7 @@ import { FormField, FieldDescription, ChildrenContainer, FieldLabel, ConfirmDele
 import { SortableArrayField } from './SortableArrayField';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
+import { useTreeStore } from '../../store/treeStore';
 
 interface DictionaryFieldProps {
   name: string;
@@ -57,42 +58,38 @@ export function DictionaryField({
   rootSchema,
   globalExpandLevel = null,
 }: DictionaryFieldProps) {
-  // Track if user has manually toggled this field
-  const [hasBeenManuallyToggled, setHasBeenManuallyToggled] = useState(false);
-  const [isExpandedLocal, setIsExpandedLocal] = useState(() => depth < 2);
+  // Use treeStore for form expansion state
+  // Subscribe to manuallyToggledFormPaths to trigger re-renders when paths are expanded via navigation
+  const { isFormPathExpanded, toggleFormPath, manuallyToggledFormPaths, selectedPath } = useTreeStore();
+  const _isManuallyToggled = manuallyToggledFormPaths.has(path);
 
-  // Calculate whether this field should be expanded based on globalExpandLevel
-  const shouldExpandByLevel = (level: GlobalExpandLevel | null) => {
-    if (level === 'all') return true;
-    if (level !== null && level !== undefined) {
-      return depth < level;
-    }
-    return null; // null means no opinion from global level
-  };
+  const isExpanded = isFormPathExpanded(path, depth, globalExpandLevel);
 
-  // When globalExpandLevel changes, update expansion state
-  // but only if user hasn't manually toggled this field
-  useEffect(() => {
-    if (hasBeenManuallyToggled) return;
-
-    const shouldExpand = shouldExpandByLevel(globalExpandLevel);
-    if (shouldExpand !== null) {
-      setIsExpandedLocal(shouldExpand);
-    }
-  }, [globalExpandLevel, hasBeenManuallyToggled, depth]);
-
-  const isExpanded = isExpandedLocal;
-
-  const setIsExpanded = (expanded: boolean) => {
-    setHasBeenManuallyToggled(true);
-    setIsExpandedLocal(expanded);
+  const setIsExpanded = () => {
+    toggleFormPath(path);
   };
   const [newKeyInput, setNewKeyInput] = useState('');
   const [isAddingKey, setIsAddingKey] = useState(false);
 
   const title = schema.title || name;
   const description = schema.description;
-  const itemSchema = schema.additionalProperties as JSONSchema7;
+  // Get item schema from either additionalProperties or patternProperties
+  let itemSchema: JSONSchema7;
+  if (schema.additionalProperties && typeof schema.additionalProperties === 'object') {
+    itemSchema = schema.additionalProperties as JSONSchema7;
+  } else if (schema.patternProperties && typeof schema.patternProperties === 'object') {
+    // Get the first pattern's schema (most schemas have just one pattern)
+    const patterns = Object.values(schema.patternProperties);
+    if (patterns.length > 0) {
+      itemSchema = patterns[0] as JSONSchema7;
+    } else {
+      // Fallback: allow any type
+      itemSchema = { type: 'object' } as JSONSchema7;
+    }
+  } else {
+    // Fallback: allow any type
+    itemSchema = { type: 'object' } as JSONSchema7;
+  }
   const entries = Object.entries(value || {});
 
   // Track expanded state for each entry (controlled mode for Collapse/Expand All)
@@ -103,6 +100,24 @@ export function DictionaryField({
     });
     return initial;
   });
+
+  // Sync with treeStore: when navigation selects a dictionary entry path, expand it locally
+  useEffect(() => {
+    if (!selectedPath) return;
+    // Check if selectedPath is a child of this dictionary (e.g., "services.web" or "services.web.ports")
+    const dictPrefix = `${path}.`;
+    if (selectedPath.startsWith(dictPrefix)) {
+      // Extract the key from the path (first segment after the prefix)
+      const remainder = selectedPath.slice(dictPrefix.length);
+      const key = remainder.split('.')[0].split('[')[0]; // Handle both "web.ports" and "web[0]"
+      if (key && entries.some(([k]) => k === key)) {
+        setEntryExpandedStates(prev => {
+          if (prev[key]) return prev;
+          return { ...prev, [key]: true };
+        });
+      }
+    }
+  }, [selectedPath, path, entries]);
 
   // Sync expanded states when entries change (new keys added)
   useEffect(() => {
@@ -177,12 +192,12 @@ export function DictionaryField({
   };
 
   return (
-    <div className="py-2">
+    <div data-field-path={path} className="py-2">
       {/* Header row: label with chevron | count and controls */}
       <div className="flex items-center gap-3">
         <div
           className="flex items-center gap-1 cursor-pointer"
-          onClick={() => setIsExpanded(!isExpanded)}
+          onClick={setIsExpanded}
         >
           <FieldLabel name={name} title={title} required={required} as="span" />
           {isExpanded ? (
@@ -329,17 +344,22 @@ function DictionaryEntry({
   isExpandedControlled,
   onExpandedChange,
 }: DictionaryEntryProps) {
-  const [isExpandedLocal, setIsExpandedLocal] = useState(depth < 3);
+  // Use treeStore for form expansion state
+  // Subscribe to manuallyToggledFormPaths to trigger re-renders when paths are expanded via navigation
+  const { isFormPathExpanded, toggleFormPath, manuallyToggledFormPaths } = useTreeStore();
+  const _isManuallyToggled = manuallyToggledFormPaths.has(path);
   const [isEditing, setIsEditing] = useState(false);
   const [editKey, setEditKey] = useState(entryKey);
 
-  // Use controlled state if provided, otherwise local state
-  const isExpanded = isExpandedControlled !== undefined ? isExpandedControlled : isExpandedLocal;
-  const setIsExpanded = (expanded: boolean) => {
+  // Use controlled state if provided, otherwise treeStore
+  const isExpanded = isExpandedControlled !== undefined
+    ? isExpandedControlled
+    : isFormPathExpanded(path, depth, null);
+  const setIsExpanded = () => {
     if (onExpandedChange) {
-      onExpandedChange(expanded);
+      onExpandedChange(!isExpanded);
     } else {
-      setIsExpandedLocal(expanded);
+      toggleFormPath(path);
     }
   };
 
@@ -363,11 +383,11 @@ function DictionaryEntry({
   if (isObjectSchema || isArraySchema) {
     // Render as collapsible section with nested form fields
     return (
-      <div className="py-1.5">
+      <div data-field-path={path} className="py-1.5">
         <div className="flex items-center gap-1">
           <div
             className="flex items-center gap-1 cursor-pointer flex-1"
-            onClick={() => setIsExpanded(!isExpanded)}
+            onClick={setIsExpanded}
           >
             {isExpanded ? (
               <ChevronDown className="w-3 h-3 text-muted-foreground" />
@@ -446,7 +466,7 @@ function DictionaryEntry({
 
   // For primitive schemas, render inline
   return (
-    <div className="py-1.5">
+    <div data-field-path={path} className="py-1.5">
       <div className="flex items-center gap-2">
         {isEditing ? (
           <Input
