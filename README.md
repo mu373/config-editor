@@ -2,14 +2,29 @@
 
 A JSON Schema-aware YAML/JSON editor featuring dual editing modes: raw text and form-based GUI.
 
+Available at: https://config-editor.vercel.app/
+
 ## Features
 
 - **Monaco Editor** with JSON Schema validation, autocompletion, and hover docs
 - **Form-based GUI** for visual editing alongside raw text
-- **YAML/JSON toggle** with seamless format conversion
+- **YAML/JSON support**: seamlessly use formats you need
 - **Multi-tab interface** for editing multiple configs
-- **Schema management** - load schemas from URL, paste JSON, or use bundled presets
-- **Bidirectional sync** between Monaco and form editor
+- **Schema management**: load schemas from URL, paste JSON, or use bundled presets
+- **Bidirectional sync** between text editor and GUI form
+
+## Use Cases
+
+Use **config-editor** whenever you want to edit **JSON/YAML config** files and benefit from **JSON Schema**-based validation, safety, and collaboration. Example use cases include:
+
+- **Application and service configs**: `config.yml`, `settings.json`, feature flags, and per-environment files
+- **Infrastructure as Code (IaC) and orchestration**: Kubernetes manifests, Docker Compose files, Ansible playbooks, and cloud stack templates (e.g. AWS CloudFormation/SAM in YAML/JSON)
+- **CI/CD and platform configs**: pipeline definitions (e.g. GitHub Actions, GitLab CI, Azure Pipelines), alert rules, dashboards, logging/metrics configs
+- **API specifications**: OpenAPI/Swagger and AsyncAPI definitions written in YAML or JSON
+- **ML and experiment configs**: Hydra/OmegaConf experiment settings, Weights & Biases sweep configs, DVC (`dvc.yaml`) pipelines, and other YAML/JSON-based experiment definitions
+- **Scientific workflows and robotics**: Snakemake `config.yaml`, CWL workflow/input files, ROS/ROS 2 parameter files, and similar structured configs
+- **Mixed expert / non-expert editing**: experts use raw Monaco editing while collaborators use a safer form-based GUI backed by the same schema
+
 
 ## Project Structure
 
@@ -21,6 +36,10 @@ packages/
 ```
 
 ## Getting Started
+
+Available at: https://config-editor.vercel.app/
+
+For development:
 
 ```bash
 pnpm install
