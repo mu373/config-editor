@@ -119,7 +119,8 @@ export function SchemaPanel({
           let newContent: string;
           const currentContent = contentRef.current;
           if (format === 'yaml') {
-            newContent = updateYamlPreservingComments(currentContent, newValue);
+            // Pass schema for property ordering (cast to unknown to satisfy TypeScript)
+            newContent = updateYamlPreservingComments(currentContent, newValue, schema as unknown as Parameters<typeof updateYamlPreservingComments>[2]);
           } else if (format === 'jsonc') {
             newContent = updateJsonPreservingComments(currentContent, newValue);
           } else {
@@ -132,7 +133,7 @@ export function SchemaPanel({
         }
       }, DEBOUNCE_DELAY);
     },
-    [format, onContentChange]
+    [format, onContentChange, schema]
   );
 
   const { expandFormAncestors } = useTreeStore();

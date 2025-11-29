@@ -110,7 +110,7 @@ function determineCurrentVariant(
     for (const variant of variants) {
       if (variant.isNull) continue;
       const schema = variant.resolvedSchema;
-      if (schema.enum && schema.enum.includes(value)) {
+      if (schema.enum && schema.enum.includes(value as string)) {
         return variant.index;
       }
     }

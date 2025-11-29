@@ -34,16 +34,95 @@ export function stringifyYaml(value: unknown): string {
 }
 
 /**
+ * Schema type for property ordering - compatible with JSONSchema7
+ */
+interface SchemaLike {
+  properties?: Record<string, SchemaLike | boolean>;
+  additionalProperties?: boolean | SchemaLike;
+  patternProperties?: Record<string, SchemaLike | boolean>;
+  items?: SchemaLike | SchemaLike[] | boolean;
+  $ref?: string;
+  $defs?: Record<string, SchemaLike | boolean>;
+  definitions?: Record<string, SchemaLike | boolean>;
+}
+
+/**
+ * Resolve a $ref in a schema
+ */
+function resolveSchemaRef(schema: SchemaLike, rootSchema: SchemaLike): SchemaLike {
+  if (!schema.$ref) return schema;
+
+  const refPath = schema.$ref.replace('#/', '').split('/');
+  let resolved: Record<string, unknown> = rootSchema as Record<string, unknown>;
+
+  for (const part of refPath) {
+    resolved = resolved[part] as Record<string, unknown>;
+    if (!resolved) return schema;
+  }
+
+  return resolved as SchemaLike;
+}
+
+/**
+ * Get the schema for a property, resolving $ref if needed
+ */
+function getPropertySchema(
+  parentSchema: SchemaLike | undefined,
+  key: string,
+  rootSchema: SchemaLike | undefined
+): SchemaLike | undefined {
+  if (!parentSchema || !rootSchema) return undefined;
+
+  const resolved = resolveSchemaRef(parentSchema, rootSchema);
+
+  // Check direct properties first
+  const propSchema = resolved.properties?.[key];
+  if (propSchema && typeof propSchema === 'object') {
+    return resolveSchemaRef(propSchema, rootSchema);
+  }
+
+  // Check patternProperties
+  if (resolved.patternProperties) {
+    for (const [pattern, patternSchema] of Object.entries(resolved.patternProperties)) {
+      if (new RegExp(pattern).test(key) && typeof patternSchema === 'object') {
+        return resolveSchemaRef(patternSchema, rootSchema);
+      }
+    }
+  }
+
+  // Check additionalProperties
+  if (typeof resolved.additionalProperties === 'object') {
+    return resolveSchemaRef(resolved.additionalProperties, rootSchema);
+  }
+
+  return undefined;
+}
+
+/**
+ * Get schema property order (returns array of property names in schema order)
+ */
+function getSchemaPropertyOrder(schema: SchemaLike | undefined, rootSchema: SchemaLike | undefined): string[] {
+  if (!schema || !rootSchema) return [];
+
+  const resolved = resolveSchemaRef(schema, rootSchema);
+  if (!resolved.properties) return [];
+
+  return Object.keys(resolved.properties);
+}
+
+/**
  * Update YAML content while preserving comments and formatting.
  * This uses string manipulation to preserve exact spacing and comments.
  *
  * @param originalYaml - The original YAML content (with comments)
  * @param newValue - The new value to apply
+ * @param schema - Optional JSON schema for property ordering
  * @returns Updated YAML content with comments preserved
  */
 export function updateYamlPreservingComments(
   originalYaml: string,
-  newValue: unknown
+  newValue: unknown,
+  schema?: SchemaLike
 ): string {
   try {
     // Parse to get the old values
@@ -57,7 +136,7 @@ export function updateYamlPreservingComments(
     // Use line-by-line replacement to preserve exact spacing
     // This now handles inserting new keys and deleting removed keys at all nesting levels
     let lines = originalYaml.split('\n');
-    lines = updateYamlLines(lines, oldValue, newValue, 0, '');
+    lines = updateYamlLines(lines, oldValue, newValue, 0, '', schema, schema);
 
     return lines.join('\n');
   } catch (error) {
@@ -77,8 +156,13 @@ function serializeValueToYaml(key: string, value: unknown, indent: string): stri
 
   if (typeof value === 'object' && !Array.isArray(value)) {
     const obj = value as Record<string, unknown>;
+    const entries = Object.entries(obj);
+    // Empty object: serialize as `key: {}`
+    if (entries.length === 0) {
+      return [`${indent}${key}: {}`];
+    }
     const lines = [`${indent}${key}:`];
-    for (const [k, v] of Object.entries(obj)) {
+    for (const [k, v] of entries) {
       lines.push(...serializeValueToYaml(k, v, indent + '  '));
     }
     return lines;
@@ -182,13 +266,16 @@ function findBlockEnd(lines: string[], startIdx: number, parentIndent: string): 
 /**
  * Update YAML lines while preserving exact spacing and comments.
  * Now also handles inserting new keys and deleting removed keys at any nesting level.
+ * When schema is provided, new keys are inserted in schema property order.
  */
 function updateYamlLines(
   lines: string[],
   oldValue: any,
   newValue: any,
   startIdx: number,
-  indent: string = ''
+  indent: string = '',
+  schema?: SchemaLike,
+  rootSchema?: SchemaLike
 ): string[] {
   let result = [...lines];
 
@@ -248,8 +335,9 @@ function updateYamlLines(
     if (existingPos) {
       // Key exists - update it
       if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-        // Nested object - recurse
-        result = updateYamlLines(result, oldVal, value, existingPos.lineIdx + 1, indent + '  ');
+        // Nested object - recurse with child schema
+        const childSchema = getPropertySchema(schema, key, rootSchema);
+        result = updateYamlLines(result, oldVal, value, existingPos.lineIdx + 1, indent + '  ', childSchema, rootSchema);
       } else if (Array.isArray(value)) {
         // Array value - remove old content and insert new
         const blockEnd = findBlockEnd(result, existingPos.lineIdx + 1, indent);
@@ -296,15 +384,61 @@ function updateYamlLines(
         }
       }
     } else if (!(key in oldObj)) {
-      // New key - insert it at the end of this object's scope
+      // New key - insert it respecting schema order if available
       const insertedLines = serializeValueToYaml(key, value, indent);
 
-      // Find insertion point: end of current object's scope
-      let insertIdx = findBlockEnd(result, startIdx, indent);
+      // Find insertion point based on schema order
+      let insertIdx: number;
+      const schemaOrder = getSchemaPropertyOrder(schema, rootSchema);
+      const keyIndex = schemaOrder.indexOf(key);
 
-      // Back up over trailing empty lines within scope
-      while (insertIdx > startIdx && result[insertIdx - 1].trim() === '') {
-        insertIdx--;
+      if (keyIndex !== -1) {
+        // Key is in schema - find the right position based on schema order
+        // Look for the first existing key that comes after this key in schema order
+        let insertAfterKey: string | null = null;
+        let insertBeforeKey: string | null = null;
+
+        // Find the nearest existing key that comes before this key in schema order
+        for (let i = keyIndex - 1; i >= 0; i--) {
+          if (existingKeyPositions.has(schemaOrder[i])) {
+            insertAfterKey = schemaOrder[i];
+            break;
+          }
+        }
+
+        // Find the nearest existing key that comes after this key in schema order
+        for (let i = keyIndex + 1; i < schemaOrder.length; i++) {
+          if (existingKeyPositions.has(schemaOrder[i])) {
+            insertBeforeKey = schemaOrder[i];
+            break;
+          }
+        }
+
+        if (insertAfterKey) {
+          // Insert after the previous key's block
+          const afterPos = existingKeyPositions.get(insertAfterKey)!;
+          insertIdx = findBlockEnd(result, afterPos.lineIdx + 1, indent);
+          // Back up over trailing empty lines
+          while (insertIdx > afterPos.lineIdx + 1 && result[insertIdx - 1].trim() === '') {
+            insertIdx--;
+          }
+        } else if (insertBeforeKey) {
+          // Insert before the next key
+          const beforePos = existingKeyPositions.get(insertBeforeKey)!;
+          insertIdx = beforePos.lineIdx;
+        } else {
+          // No reference keys - insert at end of scope
+          insertIdx = findBlockEnd(result, startIdx, indent);
+          while (insertIdx > startIdx && result[insertIdx - 1].trim() === '') {
+            insertIdx--;
+          }
+        }
+      } else {
+        // Key not in schema (additionalProperties, patternProperties, etc.) - insert at end
+        insertIdx = findBlockEnd(result, startIdx, indent);
+        while (insertIdx > startIdx && result[insertIdx - 1].trim() === '') {
+          insertIdx--;
+        }
       }
 
       result.splice(insertIdx, 0, ...insertedLines);

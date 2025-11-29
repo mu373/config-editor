@@ -70,12 +70,13 @@ function generateEdits(
   const originalValue = parseJsonc(originalJson);
 
   // Generate edits by comparing old and new values
-  generateEditsRecursive([], originalValue, newValue, edits);
+  generateEditsRecursive(originalJson, [], originalValue, newValue, edits);
 
   return edits;
 }
 
 function generateEditsRecursive(
+  originalJson: string,
   path: jsonc.JSONPath,
   oldValue: unknown,
   newValue: unknown,
@@ -93,10 +94,8 @@ function generateEditsRecursive(
     newValue === null ||
     typeof newValue !== 'object'
   ) {
-    edits.push({
-      path,
-      value: newValue,
-    } as jsonc.Edit);
+    const modifyEdits = jsonc.modify(originalJson, path, newValue, {});
+    edits.push(...modifyEdits);
     return;
   }
 
@@ -104,24 +103,20 @@ function generateEditsRecursive(
   if (Array.isArray(newValue)) {
     if (!Array.isArray(oldValue)) {
       // Type changed from object to array
-      edits.push({
-        path,
-        value: newValue,
-      } as jsonc.Edit);
+      const modifyEdits = jsonc.modify(originalJson, path, newValue, {});
+      edits.push(...modifyEdits);
       return;
     }
 
     // Handle array updates
     if (newValue.length !== oldValue.length) {
       // Length changed - replace entire array for simplicity
-      edits.push({
-        path,
-        value: newValue,
-      } as jsonc.Edit);
+      const modifyEdits = jsonc.modify(originalJson, path, newValue, {});
+      edits.push(...modifyEdits);
     } else {
       // Same length - check each element
       newValue.forEach((item, index) => {
-        generateEditsRecursive([...path, index], oldValue[index], item, edits);
+        generateEditsRecursive(originalJson, [...path, index], oldValue[index], item, edits);
       });
     }
   } else {
@@ -135,10 +130,8 @@ function generateEditsRecursive(
     // Remove keys that are no longer present
     for (const key of oldKeys) {
       if (!newKeys.has(key)) {
-        edits.push({
-          path: [...path, key],
-          value: undefined,
-        } as jsonc.Edit);
+        const modifyEdits = jsonc.modify(originalJson, [...path, key], undefined, {});
+        edits.push(...modifyEdits);
       }
     }
 
@@ -146,13 +139,11 @@ function generateEditsRecursive(
     for (const key of newKeys) {
       if (!oldKeys.has(key)) {
         // New key
-        edits.push({
-          path: [...path, key],
-          value: newObj[key],
-        } as jsonc.Edit);
+        const modifyEdits = jsonc.modify(originalJson, [...path, key], newObj[key], {});
+        edits.push(...modifyEdits);
       } else {
         // Existing key - recurse
-        generateEditsRecursive([...path, key], oldObj[key], newObj[key], edits);
+        generateEditsRecursive(originalJson, [...path, key], oldObj[key], newObj[key], edits);
       }
     }
   }

@@ -114,7 +114,7 @@ function getSchemaType(schema: JSONSchema7, rootSchema?: JSONSchema7): string | 
 function isDictionary(schema: JSONSchema7, rootSchema?: JSONSchema7): boolean {
   const hasNoProperties = !schema.properties || Object.keys(schema.properties).length === 0;
   const hasAdditionalProps = schema.additionalProperties !== false && schema.additionalProperties !== undefined;
-  const hasPatternProps = schema.patternProperties && Object.keys(schema.patternProperties).length > 0;
+  const hasPatternProps = Boolean(schema.patternProperties && Object.keys(schema.patternProperties).length > 0);
   return hasNoProperties && (hasAdditionalProps || hasPatternProps) && getSchemaType(schema, rootSchema) === 'object';
 }
 
