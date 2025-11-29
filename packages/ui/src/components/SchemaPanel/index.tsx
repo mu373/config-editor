@@ -8,7 +8,18 @@ import {
   SelectValue,
 } from '../ui/select';
 import type { JSONSchema7 } from 'json-schema';
-import { parseYaml, stringifyYaml, parseJson, stringifyJson, type Format, type SchemaPreset } from '@config-editor/core';
+import {
+  parseYaml,
+  stringifyYaml,
+  parseJson,
+  stringifyJson,
+  parseJsonc,
+  stringifyJsonc,
+  updateYamlPreservingComments,
+  updateJsonPreservingComments,
+  type Format,
+  type SchemaPreset,
+} from '@config-editor/core';
 
 // Debounce delay for content updates - keep low for responsive feel
 const DEBOUNCE_DELAY = 50;
@@ -38,6 +49,8 @@ export function SchemaPanel({
   const debounceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Track pending value to use for form while debounced update is pending
   const [pendingValue, setPendingValue] = useState<Record<string, unknown> | null>(null);
+  // Track the last content we sent to parent to distinguish our own updates from external ones
+  const lastSentContentRef = useRef<string>('');
 
   // Cleanup debounce timeout on unmount
   useEffect(() => {
@@ -52,9 +65,24 @@ export function SchemaPanel({
   const parsedValue = useMemo(() => {
     if (!content) return {};
     try {
-      const parsed = format === 'json' ? parseJson(content) : parseYaml(content);
+      let parsed: unknown;
+      if (format === 'yaml') {
+        parsed = parseYaml(content);
+      } else if (format === 'jsonc') {
+        parsed = parseJsonc(content);
+      } else {
+        parsed = parseJson(content);
+      }
       setParseError(null);
       lastValidValueRef.current = parsed as Record<string, unknown>;
+
+      // Clear pending value when content changes externally (e.g., from text editor)
+      // Only clear if this is NOT from our own update (check against last sent content)
+      if (content !== lastSentContentRef.current) {
+        console.log('[SchemaPanel] External content change detected, clearing pendingValue');
+        setPendingValue(null);
+      }
+
       return parsed as Record<string, unknown>;
     } catch (err) {
       setParseError((err as Error).message);
@@ -79,8 +107,23 @@ export function SchemaPanel({
       // Debounce the serialization and store update
       debounceTimeoutRef.current = setTimeout(() => {
         try {
-          const newContent =
-            format === 'json' ? stringifyJson(newValue) : stringifyYaml(newValue);
+          console.log('[SchemaPanel] Updating content with new value:', newValue);
+          let newContent: string;
+          if (format === 'yaml') {
+            // Use comment-preserving update for YAML
+            newContent = updateYamlPreservingComments(content, newValue);
+            console.log('[SchemaPanel] YAML update result:', newContent);
+          } else if (format === 'jsonc') {
+            // Use comment-preserving update for JSONC
+            newContent = updateJsonPreservingComments(content, newValue);
+            console.log('[SchemaPanel] JSONC update result:', newContent);
+          } else {
+            // Regular JSON (no comments to preserve)
+            newContent = stringifyJson(newValue);
+            console.log('[SchemaPanel] JSON update result:', newContent);
+          }
+          // Track this as our own update so we don't clear pendingValue when it comes back
+          lastSentContentRef.current = newContent;
           onContentChange(newContent);
           // Clear pending value after successful update
           setPendingValue(null);
@@ -89,7 +132,7 @@ export function SchemaPanel({
         }
       }, DEBOUNCE_DELAY);
     },
-    [format, onContentChange]
+    [format, onContentChange, content]
   );
 
   return (

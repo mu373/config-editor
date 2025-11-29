@@ -416,6 +416,62 @@ export function FormField({
     const isDateTime = effectiveSchema.format === 'date-time';
     const inputType = isDate ? 'date' : isDateTime ? 'datetime-local' : 'text';
     const isArrayItem = /^\[\d+\]$/.test(name);
+
+    // Convert value to HTML input format for date/datetime
+    let inputValue = '';
+
+    // Debug logging
+    if (isDate || isDateTime) {
+      console.log('[FormField] Date/DateTime value:', { value, type: typeof value, isDate: value instanceof Date });
+    }
+
+    if (value instanceof Date) {
+      // Value is already a Date object
+      if (isDate) {
+        inputValue = value.toISOString().split('T')[0];
+      } else if (isDateTime) {
+        const year = value.getFullYear();
+        const month = String(value.getMonth() + 1).padStart(2, '0');
+        const day = String(value.getDate()).padStart(2, '0');
+        const hours = String(value.getHours()).padStart(2, '0');
+        const minutes = String(value.getMinutes()).padStart(2, '0');
+        inputValue = `${year}-${month}-${day}T${hours}:${minutes}`;
+      }
+      console.log('[FormField] Converted Date object to:', inputValue);
+    } else if (typeof value === 'string') {
+      // Value is a string, try to parse it
+      if (isDate && value) {
+        try {
+          const date = new Date(value);
+          if (!isNaN(date.getTime())) {
+            inputValue = date.toISOString().split('T')[0];
+          } else {
+            inputValue = value;
+          }
+        } catch {
+          inputValue = value;
+        }
+      } else if (isDateTime && value) {
+        try {
+          const date = new Date(value);
+          if (!isNaN(date.getTime())) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            inputValue = `${year}-${month}-${day}T${hours}:${minutes}`;
+          } else {
+            inputValue = value;
+          }
+        } catch {
+          inputValue = value;
+        }
+      } else {
+        inputValue = value;
+      }
+    }
+
     return (
       <div className={isArrayItem ? '' : 'py-2'}>
         <div className={`flex items-center gap-3 ${isArrayItem ? 'h-7' : ''}`}>
@@ -424,7 +480,7 @@ export function FormField({
             <Input
               type={inputType}
               size="sm"
-              value={(value as string) ?? ''}
+              value={inputValue}
               onChange={(e) => onChange(path, e.target.value || (nullable ? null : ''))}
               placeholder={effectiveSchema.default as string}
             />

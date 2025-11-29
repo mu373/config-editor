@@ -105,7 +105,18 @@ function determineCurrentVariant(
   const valueType = typeof value;
   const isArray = Array.isArray(value);
 
-  // Find best matching variant
+  // First pass: Check for exact enum matches (more specific)
+  if (valueType === 'string') {
+    for (const variant of variants) {
+      if (variant.isNull) continue;
+      const schema = variant.resolvedSchema;
+      if (schema.enum && schema.enum.includes(value)) {
+        return variant.index;
+      }
+    }
+  }
+
+  // Second pass: Check for type matches (more generic)
   for (const variant of variants) {
     if (variant.isNull) continue;
 
