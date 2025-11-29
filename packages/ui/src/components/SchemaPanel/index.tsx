@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useRef } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { SchemaForm, type GlobalExpandLevel } from './SchemaForm';
 import {
   Select,
@@ -9,6 +9,9 @@ import {
 } from '../ui/select';
 import type { JSONSchema7 } from 'json-schema';
 import { parseYaml, stringifyYaml, parseJson, stringifyJson, type Format, type SchemaPreset } from '@config-editor/core';
+
+// Debounce delay for content updates - keep low for responsive feel
+const DEBOUNCE_DELAY = 50;
 
 interface SchemaPanelProps {
   schema: JSONSchema7 | null;
@@ -32,6 +35,18 @@ export function SchemaPanel({
   const [parseError, setParseError] = useState<string | null>(null);
   const [globalExpandLevel, setGlobalExpandLevel] = useState<GlobalExpandLevel>(1);
   const lastValidValueRef = useRef<Record<string, unknown> | null>(null);
+  const debounceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Track pending value to use for form while debounced update is pending
+  const [pendingValue, setPendingValue] = useState<Record<string, unknown> | null>(null);
+
+  // Cleanup debounce timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceTimeoutRef.current) {
+        clearTimeout(debounceTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Parse content to object for form editing
   const parsedValue = useMemo(() => {
@@ -47,16 +62,32 @@ export function SchemaPanel({
     }
   }, [content, format]);
 
-  // Handle form changes - serialize back to content
+  // Use pending value if available (for immediate form feedback), otherwise parsed content
+  const formValue = pendingValue ?? parsedValue;
+
+  // Handle form changes - debounce serialization to reduce Monaco updates
   const handleFormChange = useCallback(
     (newValue: Record<string, unknown>) => {
-      try {
-        const newContent =
-          format === 'json' ? stringifyJson(newValue) : stringifyYaml(newValue);
-        onContentChange(newContent);
-      } catch (err) {
-        console.error('Serialization error:', err);
+      // Update form immediately for responsive UI
+      setPendingValue(newValue);
+
+      // Clear existing timeout
+      if (debounceTimeoutRef.current) {
+        clearTimeout(debounceTimeoutRef.current);
       }
+
+      // Debounce the serialization and store update
+      debounceTimeoutRef.current = setTimeout(() => {
+        try {
+          const newContent =
+            format === 'json' ? stringifyJson(newValue) : stringifyYaml(newValue);
+          onContentChange(newContent);
+          // Clear pending value after successful update
+          setPendingValue(null);
+        } catch (err) {
+          console.error('Serialization error:', err);
+        }
+      }, DEBOUNCE_DELAY);
     },
     [format, onContentChange]
   );
@@ -128,7 +159,7 @@ export function SchemaPanel({
         {schema ? (
           <SchemaForm
             schema={schema}
-            value={parsedValue}
+            value={formValue}
             onChange={handleFormChange}
             globalExpandLevel={globalExpandLevel}
           />

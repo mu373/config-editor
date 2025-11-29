@@ -22,6 +22,12 @@ export function Editor() {
 
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<Monaco | null>(null);
+  // Track the last content we synced TO Monaco (from external source)
+  const lastSyncedContentRef = useRef<string | null>(null);
+  // Track content that Monaco has (including user edits)
+  const lastMonacoContentRef = useRef<string | null>(null);
+  // Flag to prevent feedback loop when we're updating from store
+  const isUpdatingFromStoreRef = useRef(false);
 
   const handleEditorDidMount = (
     editor: editor.IStandaloneCodeEditor,
@@ -29,6 +35,10 @@ export function Editor() {
   ) => {
     editorRef.current = editor;
     monacoRef.current = monaco;
+    // Initialize content tracking with what Monaco starts with
+    const initialContent = editor.getValue();
+    lastMonacoContentRef.current = initialContent;
+    lastSyncedContentRef.current = initialContent;
   };
 
   // Update schema in monaco-yaml when active tab changes
@@ -53,8 +63,68 @@ export function Editor() {
     }
   }, [activeTab?.schema, activeTabId]);
 
+  // Sync external content changes (e.g. from SchemaPanel) to Monaco
+  // Only sync if the change came from outside Monaco (not from user typing)
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor || !activeTab) return;
+
+    const storeContent = activeTab.content;
+
+    // Skip if we're in the middle of an update cycle
+    if (isUpdatingFromStoreRef.current) {
+      return;
+    }
+
+    // Skip if this content matches what Monaco already has
+    // (meaning this update originated from Monaco itself)
+    if (storeContent === lastMonacoContentRef.current) {
+      return;
+    }
+
+    const model = editor.getModel();
+    if (!model) return;
+
+    isUpdatingFromStoreRef.current = true;
+
+    // Save cursor/scroll position
+    const position = editor.getPosition();
+    const scrollTop = editor.getScrollTop();
+    const selections = editor.getSelections();
+
+    // Use executeEdits for smoother update
+    editor.executeEdits('schema-panel-sync', [
+      {
+        range: model.getFullModelRange(),
+        text: storeContent,
+        forceMoveMarkers: true,
+      },
+    ]);
+
+    // Update our tracking refs
+    lastSyncedContentRef.current = storeContent;
+    lastMonacoContentRef.current = storeContent;
+
+    // Restore position and scroll
+    if (selections && selections.length > 0) {
+      editor.setSelections(selections);
+    } else if (position) {
+      const lineCount = model.getLineCount();
+      const newPosition = {
+        lineNumber: Math.min(position.lineNumber, lineCount),
+        column: Math.min(position.column, model.getLineMaxColumn(Math.min(position.lineNumber, lineCount))),
+      };
+      editor.setPosition(newPosition);
+    }
+    editor.setScrollTop(scrollTop);
+
+    isUpdatingFromStoreRef.current = false;
+  }, [activeTab?.content]);
+
   const handleChange = (value: string | undefined) => {
     if (value !== undefined) {
+      // Track what Monaco now has before updating store
+      lastMonacoContentRef.current = value;
       setContent(value);
     }
   };
@@ -143,7 +213,7 @@ export function Editor() {
           key={activeTabId} // Force remount on tab change for clean state
           height="100%"
           language={language}
-          value={activeTab.content}
+          defaultValue={activeTab.content}
           onChange={handleChange}
           onMount={handleEditorDidMount}
           options={{
