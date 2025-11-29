@@ -47,7 +47,7 @@ export function updateYamlPreservingComments(
 ): string {
   try {
     // Parse to get the old values
-    const oldValue = parseYaml(originalYaml);
+    const oldValue = parseYaml(originalYaml) as Record<string, unknown> | null;
 
     // If values are the same, return original
     if (JSON.stringify(oldValue) === JSON.stringify(newValue)) {
@@ -55,10 +55,11 @@ export function updateYamlPreservingComments(
     }
 
     // Use line-by-line replacement to preserve exact spacing
-    const lines = originalYaml.split('\n');
-    const result = updateYamlLines(lines, oldValue, newValue, 0);
+    // This now handles inserting new keys and deleting removed keys at all nesting levels
+    let lines = originalYaml.split('\n');
+    lines = updateYamlLines(lines, oldValue, newValue, 0, '');
 
-    return result.join('\n');
+    return lines.join('\n');
   } catch (error) {
     // Fallback to regular serialization if patching fails
     console.warn('Failed to preserve YAML comments, falling back to regular serialization:', error);
@@ -67,7 +68,120 @@ export function updateYamlPreservingComments(
 }
 
 /**
- * Update YAML lines while preserving exact spacing and comments
+ * Serialize a key-value pair to YAML lines
+ */
+function serializeValueToYaml(key: string, value: unknown, indent: string): string[] {
+  if (value === null || value === undefined) {
+    return [`${indent}${key}: null`];
+  }
+
+  if (typeof value === 'object' && !Array.isArray(value)) {
+    const obj = value as Record<string, unknown>;
+    const lines = [`${indent}${key}:`];
+    for (const [k, v] of Object.entries(obj)) {
+      lines.push(...serializeValueToYaml(k, v, indent + '  '));
+    }
+    return lines;
+  }
+
+  if (Array.isArray(value)) {
+    if (value.length === 0) {
+      return [`${indent}${key}: []`];
+    }
+    const lines = [`${indent}${key}:`];
+    for (const item of value) {
+      if (typeof item === 'object' && item !== null && !Array.isArray(item)) {
+        // Object item - serialize with proper indentation
+        const itemLines = serializeObjectAsYamlLines(item as Record<string, unknown>, indent + '    ');
+        if (itemLines.length > 0) {
+          // First line of object gets the `-` prefix
+          lines.push(`${indent}  - ${itemLines[0].trim()}`);
+          lines.push(...itemLines.slice(1));
+        }
+      } else {
+        lines.push(`${indent}  - ${serializeScalarValue(item)}`);
+      }
+    }
+    return lines;
+  }
+
+  return [`${indent}${key}: ${serializeScalarValue(value)}`];
+}
+
+/**
+ * Serialize an object as YAML lines (without the key)
+ */
+function serializeObjectAsYamlLines(obj: Record<string, unknown>, indent: string): string[] {
+  const lines: string[] = [];
+  for (const [k, v] of Object.entries(obj)) {
+    lines.push(...serializeValueToYaml(k, v, indent));
+  }
+  return lines;
+}
+
+/**
+ * Remove a key from YAML content
+ */
+function removeKeyFromYaml(lines: string[], key: string, indent: string): string[] {
+  const result: string[] = [];
+  let skipUntilNextKey = false;
+  let skipIndent = '';
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+
+    if (skipUntilNextKey) {
+      // Check if we've reached a line with same or lesser indentation (new key at same level)
+      if (trimmed !== '' && !trimmed.startsWith('#')) {
+        const currentIndent = line.match(/^(\s*)/)?.[1] ?? '';
+        if (currentIndent.length <= skipIndent.length) {
+          skipUntilNextKey = false;
+        }
+      }
+    }
+
+    if (!skipUntilNextKey) {
+      // Check if this line is the key we want to remove
+      const keyPattern = new RegExp(`^(${escapeRegex(indent)})${escapeRegex(key)}:\\s*`);
+      if (keyPattern.test(line)) {
+        // Start skipping this key and its nested content
+        skipUntilNextKey = true;
+        skipIndent = indent;
+        continue;
+      }
+      result.push(line);
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Find the end of a YAML block (where indentation returns to parent level or less)
+ */
+function findBlockEnd(lines: string[], startIdx: number, parentIndent: string): number {
+  for (let i = startIdx; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+
+    // Skip empty lines and comments
+    if (trimmed === '' || trimmed.startsWith('#')) {
+      continue;
+    }
+
+    // Check indentation - if we find a line with same or less indentation, block ends before it
+    const lineIndent = line.match(/^(\s*)/)?.[1] ?? '';
+    if (lineIndent.length <= parentIndent.length) {
+      return i;
+    }
+  }
+  return lines.length;
+}
+
+/**
+ * Update YAML lines while preserving exact spacing and comments.
+ * Now also handles inserting new keys and deleting removed keys at any nesting level.
  */
 function updateYamlLines(
   lines: string[],
@@ -83,72 +197,91 @@ function updateYamlLines(
   }
 
   if (Array.isArray(newValue)) {
-    // Handle arrays - for now, just update values
+    // Arrays are handled by their parent object, not directly
     return result;
   }
 
-  // Handle objects - update each key
-  for (const [key, value] of Object.entries(newValue)) {
-    const oldVal = oldValue?.[key];
+  const oldObj = (oldValue ?? {}) as Record<string, unknown>;
+  const newObj = newValue as Record<string, unknown>;
+
+  // Track keys that exist in YAML and their positions
+  const existingKeyPositions: Map<string, { lineIdx: number; lineIndent: string }> = new Map();
+
+  // Find positions of existing keys at this indent level
+  for (let i = startIdx; i < result.length; i++) {
+    const line = result[i];
+    const trimmed = line.trim();
+
+    // Skip comments and empty lines
+    if (trimmed.startsWith('#') || trimmed === '') {
+      continue;
+    }
+
+    // Check if we've exited this indentation level
+    const lineIndent = line.match(/^(\s*)/)?.[1] ?? '';
+    if (lineIndent.length < indent.length) {
+      break; // We've exited this object's scope
+    }
+    if (lineIndent.length > indent.length) {
+      continue; // Skip nested content
+    }
+
+    // Check if this line is a key at the current indent level
+    const keyMatch = line.match(/^(\s*)([^:\s#]+):\s*/);
+    if (keyMatch && keyMatch[1] === indent) {
+      const key = keyMatch[2];
+      existingKeyPositions.set(key, { lineIdx: i, lineIndent: keyMatch[1] });
+    }
+  }
+
+  // Handle each key in newValue
+  for (const [key, value] of Object.entries(newObj)) {
+    const oldVal = oldObj[key];
 
     // Skip if value unchanged
     if (JSON.stringify(oldVal) === JSON.stringify(value)) {
       continue;
     }
 
-    // Check if value is a nested object
-    if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-      // Find the line with this key and recurse for nested object
-      for (let i = startIdx; i < result.length; i++) {
-        const line = result[i];
-        const trimmed = line.trim();
+    const existingPos = existingKeyPositions.get(key);
 
-        // Skip comments and empty lines
-        if (trimmed.startsWith('#') || trimmed === '') {
-          continue;
-        }
+    if (existingPos) {
+      // Key exists - update it
+      if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+        // Nested object - recurse
+        result = updateYamlLines(result, oldVal, value, existingPos.lineIdx + 1, indent + '  ');
+      } else if (Array.isArray(value)) {
+        // Array value - remove old content and insert new
+        const blockEnd = findBlockEnd(result, existingPos.lineIdx + 1, indent);
+        const newArrayLines = serializeValueToYaml(key, value, indent);
 
-        // Check if this line contains the key (object header)
-        const keyPattern = new RegExp(`^(\\s*)${escapeRegex(key)}:\\s*(?:#.*)?$`);
-        const match = line.match(keyPattern);
+        // Replace from the key line to end of block with new content
+        const lineDiff = newArrayLines.length - (blockEnd - existingPos.lineIdx);
+        result.splice(existingPos.lineIdx, blockEnd - existingPos.lineIdx, ...newArrayLines);
 
-        if (match) {
-          const lineIndent = match[1];
-          // Recursively update nested object starting from next line
-          result = updateYamlLines(result, oldVal, value, i + 1, lineIndent + '  ');
-          break;
-        }
-      }
-    } else {
-      // Scalar value - find and update the line
-      for (let i = startIdx; i < result.length; i++) {
-        const line = result[i];
-        const trimmed = line.trim();
-
-        // Skip comments and empty lines
-        if (trimmed.startsWith('#') || trimmed === '') {
-          continue;
-        }
-
-        // Check if this line contains the key with a value
-        const keyPattern = new RegExp(`^(\\s*)${escapeRegex(key)}:\\s+(.+?)(?:\\s*#.*)?$`);
-        const match = line.match(keyPattern);
-
-        if (match) {
-          // Check indent matches expected level (to avoid matching same key in different nesting level)
-          if (indent && !line.startsWith(indent + key + ':')) {
-            continue;
+        // Update existing key positions after array update
+        if (lineDiff !== 0) {
+          for (const [k, pos] of existingKeyPositions.entries()) {
+            if (pos.lineIdx > existingPos.lineIdx) {
+              existingKeyPositions.set(k, { ...pos, lineIdx: pos.lineIdx + lineDiff });
+            }
           }
+        }
+      } else {
+        // Scalar value - find and update the line
+        const line = result[existingPos.lineIdx];
 
-          const lineIndent = match[1];
-          const oldValueStr = match[2].trim();
+        // Check if this is a scalar value line (key: value) vs object header (key:)
+        const scalarPattern = new RegExp(`^(${escapeRegex(indent)})${escapeRegex(key)}:\\s+(.+?)(?:\\s*#.*)?$`);
+        const scalarMatch = line.match(scalarPattern);
+
+        if (scalarMatch) {
+          const oldValueStr = scalarMatch[2].trim();
           const commentMatch = line.match(/#.*$/);
           const comment = commentMatch ? commentMatch[0] : '';
 
-          // Calculate spacing before comment
-          let spacing = '  '; // default 2 spaces
+          let spacing = '  ';
           if (comment) {
-            // Find the spacing between value and comment in original
             const valueEnd = line.indexOf(oldValueStr) + oldValueStr.length;
             const commentStart = line.indexOf('#');
             if (commentStart > valueEnd) {
@@ -156,19 +289,39 @@ function updateYamlLines(
             }
           }
 
-          // Serialize new value
           const newValueStr = serializeScalarValue(value);
-
-          // Reconstruct line with preserved spacing
-          if (comment) {
-            result[i] = `${lineIndent}${key}: ${newValueStr}${spacing}${comment}`;
-          } else {
-            result[i] = `${lineIndent}${key}: ${newValueStr}`;
-          }
-
-          break;
+          result[existingPos.lineIdx] = comment
+            ? `${indent}${key}: ${newValueStr}${spacing}${comment}`
+            : `${indent}${key}: ${newValueStr}`;
         }
       }
+    } else if (!(key in oldObj)) {
+      // New key - insert it at the end of this object's scope
+      const insertedLines = serializeValueToYaml(key, value, indent);
+
+      // Find insertion point: end of current object's scope
+      let insertIdx = findBlockEnd(result, startIdx, indent);
+
+      // Back up over trailing empty lines within scope
+      while (insertIdx > startIdx && result[insertIdx - 1].trim() === '') {
+        insertIdx--;
+      }
+
+      result.splice(insertIdx, 0, ...insertedLines);
+
+      // Update existing key positions after insertion
+      for (const [k, pos] of existingKeyPositions.entries()) {
+        if (pos.lineIdx >= insertIdx) {
+          existingKeyPositions.set(k, { ...pos, lineIdx: pos.lineIdx + insertedLines.length });
+        }
+      }
+    }
+  }
+
+  // Handle deleted keys
+  for (const key of Object.keys(oldObj)) {
+    if (!(key in newObj)) {
+      result = removeKeyFromYaml(result, key, indent);
     }
   }
 

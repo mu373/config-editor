@@ -13,6 +13,8 @@ import {
   stringifyYaml,
   parseJson,
   stringifyJson,
+  parseJsonc,
+  stringifyJsonc,
   type Format,
 } from '@config-editor/core';
 
@@ -75,15 +77,11 @@ export function Editor() {
     const storeContent = activeTab.content;
 
     // Skip if we're in the middle of an update cycle
-    if (isUpdatingFromStoreRef.current) {
-      return;
-    }
+    if (isUpdatingFromStoreRef.current) return;
 
     // Skip if this content matches what Monaco already has
     // (meaning this update originated from Monaco itself)
-    if (storeContent === lastMonacoContentRef.current) {
-      return;
-    }
+    if (storeContent === lastMonacoContentRef.current) return;
 
     const model = editor.getModel();
     if (!model) return;
@@ -122,7 +120,7 @@ export function Editor() {
     editor.setScrollTop(scrollTop);
 
     isUpdatingFromStoreRef.current = false;
-  }, [activeTab?.content]);
+  }, [activeTabContent]);
 
   const handleChange = (value: string | undefined) => {
     if (value !== undefined) {
@@ -137,13 +135,28 @@ export function Editor() {
       if (!activeTab || newFormat === activeTab.format) return;
 
       try {
-        if (activeTab.format === 'yaml' && newFormat === 'json') {
-          const parsed = parseYaml(activeTab.content);
-          setContent(stringifyJson(parsed));
-        } else if (activeTab.format === 'json' && newFormat === 'yaml') {
-          const parsed = parseJson(activeTab.content);
-          setContent(stringifyYaml(parsed));
+        let parsed: unknown;
+
+        // Parse from current format
+        if (activeTab.format === 'yaml') {
+          parsed = parseYaml(activeTab.content);
+        } else if (activeTab.format === 'jsonc') {
+          parsed = parseJsonc(activeTab.content);
+        } else {
+          parsed = parseJson(activeTab.content);
         }
+
+        // Stringify to new format
+        let newContent: string;
+        if (newFormat === 'yaml') {
+          newContent = stringifyYaml(parsed);
+        } else if (newFormat === 'jsonc') {
+          newContent = stringifyJsonc(parsed);
+        } else {
+          newContent = stringifyJson(parsed);
+        }
+
+        setContent(newContent);
         setFormat(newFormat);
       } catch (err) {
         console.error('Format conversion error:', err);
@@ -155,7 +168,7 @@ export function Editor() {
 
   const handleDownload = useCallback(() => {
     if (!activeTab) return;
-    const ext = activeTab.format === 'json' ? 'json' : 'yaml';
+    const ext = activeTab.format === 'yaml' ? 'yaml' : 'json';
     const defaultName = activeTab.fileName || `config.${ext}`;
     const blob = new Blob([activeTab.content], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
@@ -180,7 +193,7 @@ export function Editor() {
     );
   }
 
-  const language = activeTab.format === 'json' ? 'json' : 'yaml';
+  const language = activeTab.format === 'yaml' ? 'yaml' : 'json';
 
   return (
     <div className="h-full w-full flex flex-col">
@@ -196,9 +209,15 @@ export function Editor() {
           <ToggleGroupItem value="yaml" title="YAML format" className="text-xs">
             YAML
           </ToggleGroupItem>
-          <ToggleGroupItem value="json" title="JSON format" className="text-xs">
-            JSON
-          </ToggleGroupItem>
+          {settings.jsonIncludeComments ? (
+            <ToggleGroupItem value="jsonc" title="JSONC format (JSON with Comments)" className="text-xs">
+              JSONC
+            </ToggleGroupItem>
+          ) : (
+            <ToggleGroupItem value="json" title="JSON format" className="text-xs">
+              JSON
+            </ToggleGroupItem>
+          )}
         </ToggleGroup>
         <Button
           variant="outline"
