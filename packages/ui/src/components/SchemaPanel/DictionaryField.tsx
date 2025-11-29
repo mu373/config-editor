@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { ChevronDown, ChevronRight, Plus, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronRight, Plus } from 'lucide-react';
 import type { JSONSchema7 } from 'json-schema';
-import { FormField, FieldDescription, ChildrenContainer, FieldLabel, type GlobalExpandLevel } from './FormField';
+import { FormField, FieldDescription, ChildrenContainer, FieldLabel, ConfirmDeleteButton, type GlobalExpandLevel } from './FormField';
 import { SortableArrayField } from './SortableArrayField';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
@@ -405,17 +405,7 @@ function DictionaryEntry({
               </span>
             )}
           </div>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete();
-            }}
-            className="p-1 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded"
-            title="Delete entry"
-          >
-            <Trash2 className="w-3 h-3" />
-          </button>
+          <ConfirmDeleteButton onDelete={onDelete} size="sm" />
         </div>
 
         {isExpanded && (
@@ -495,14 +485,7 @@ function DictionaryEntry({
             rootSchema={rootSchema}
           />
         </div>
-        <button
-          type="button"
-          onClick={onDelete}
-          className="p-1 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded flex-shrink-0"
-          title="Delete entry"
-        >
-          <Trash2 className="w-3 h-3" />
-        </button>
+        <ConfirmDeleteButton onDelete={onDelete} size="sm" />
       </div>
     </div>
   );

@@ -20,12 +20,11 @@ import {
   ChevronDown,
   ChevronRight,
   Plus,
-  Trash2,
   GripVertical,
   ChevronsUpDown,
 } from 'lucide-react';
 import type { JSONSchema7 } from 'json-schema';
-import { FormField, FieldDescription, ChildrenContainer, FieldLabel, type GlobalExpandLevel } from './FormField';
+import { FormField, FieldDescription, ChildrenContainer, FieldLabel, ConfirmDeleteButton, type GlobalExpandLevel } from './FormField';
 
 interface SortableItemProps {
   id: string;
@@ -108,13 +107,10 @@ function SortableItem({ id, index, summary, children, onRemove }: SortableItemPr
         <GripVertical className="w-4 h-4" />
       </button>
       <div className="flex-1 min-w-0">{children}</div>
-      <button
-        type="button"
-        onClick={onRemove}
-        className="flex items-center justify-center w-6 h-7 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
-      >
-        <Trash2 className="w-3 h-3" />
-      </button>
+      <ConfirmDeleteButton
+        onDelete={onRemove}
+        className="opacity-0 group-hover:opacity-100 transition-opacity"
+      />
     </div>
   );
 }
