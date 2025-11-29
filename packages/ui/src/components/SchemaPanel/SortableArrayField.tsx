@@ -348,7 +348,7 @@ export function SortableArrayField({
 
         {/* Children render at full width outside the header row */}
         {isExpanded && (
-          <ChildrenContainer>
+          <ChildrenContainer onCollapse={setIsExpanded}>
             <DndContext
               sensors={sensors}
               collisionDetection={closestCenter}
@@ -441,7 +441,7 @@ export function SortableArrayField({
       )}
 
       {isExpanded && (
-        <ChildrenContainer>
+        <ChildrenContainer onCollapse={setIsExpanded}>
           <DndContext
             sensors={sensors}
             collisionDetection={closestCenter}

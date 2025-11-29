@@ -178,7 +178,7 @@ export function DictionaryField({
       {description && <FieldDescription>{description}</FieldDescription>}
 
       {isExpanded && (
-        <ChildrenContainer>
+        <ChildrenContainer onCollapse={setIsExpanded}>
           {/* Add new key input */}
           {isAddingKey && (
             <div className="mb-3 p-2 bg-primary/10 rounded border border-primary/30">
@@ -430,7 +430,7 @@ function DictionaryEntry({
 
         {/* Nested content on new line below */}
         {isExpanded && (isArraySchema || (effectiveSchema.properties && Object.keys(effectiveSchema.properties).length > 0)) && (
-          <ChildrenContainer>
+          <ChildrenContainer onCollapse={setIsExpanded}>
             {isArraySchema ? (
               // Render array directly with hideHeader since we already show the key in the header
               <SortableArrayField

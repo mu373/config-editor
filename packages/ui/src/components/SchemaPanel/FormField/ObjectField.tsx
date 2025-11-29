@@ -61,7 +61,7 @@ export const ObjectField = memo(function ObjectField({
         {description && !isArrayItem && <FieldDescription>{description}</FieldDescription>}
 
         {isExpanded && (
-          <ChildrenContainer>
+          <ChildrenContainer onCollapse={() => setIsExpanded(false)}>
             {Object.entries(schema.properties || {}).map(([key, propSchema]) => (
               <FormField
                 key={key}
@@ -99,7 +99,7 @@ export const ObjectField = memo(function ObjectField({
       {description && !isArrayItem && <FieldDescription>{description}</FieldDescription>}
 
       {isExpanded && (
-        <ChildrenContainer>
+        <ChildrenContainer onCollapse={() => setIsExpanded(false)}>
           {Object.entries(schema.properties || {}).map(([key, propSchema]) => (
             <FormField
               key={key}
