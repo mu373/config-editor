@@ -1,6 +1,23 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import type { JSONSchema } from '@config-editor/core';
 import type { Format } from '@config-editor/core';
+
+const STORAGE_KEY = 'config-editor:editor';
+
+export interface TabTreeState {
+  expandedTreePaths: string[];
+  selectedPath: string | null;
+  expandedFormPaths: string[];
+  manuallyToggledFormPaths: string[];
+}
+
+export const defaultTreeState: TabTreeState = {
+  expandedTreePaths: [],
+  selectedPath: null,
+  expandedFormPaths: [],
+  manuallyToggledFormPaths: [],
+};
 
 export interface Tab {
   id: string;
@@ -10,6 +27,7 @@ export interface Tab {
   schema: JSONSchema | null;
   schemaId: string | null;
   isDirty: boolean;
+  treeState: TabTreeState;
 }
 
 // Special tab IDs for non-editor tabs
@@ -26,7 +44,7 @@ export interface EditorState {
 
 export interface EditorActions {
   // Tab management
-  addTab: (tab: Omit<Tab, 'id'>) => string;
+  addTab: (tab: Omit<Tab, 'id' | 'treeState'> & { treeState?: TabTreeState }) => string;
   closeTab: (id: string) => void;
   setActiveTab: (id: string) => void;
   reorderTabs: (fromId: string, toId: string) => void;
@@ -40,6 +58,10 @@ export interface EditorActions {
   setFileName: (fileName: string | null) => void;
   markClean: () => void;
 
+  // Tree state operations (per-tab)
+  updateTreeState: (updates: Partial<TabTreeState>) => void;
+  getActiveTabTreeState: () => TabTreeState;
+
   // Getters
   getActiveTab: () => Tab | undefined;
 }
@@ -52,22 +74,29 @@ const generateTabId = () => `tab-${++tabIdCounter}`;
 let untitledCounter = 0;
 const generateUntitledName = () => `Untitled-${++untitledCounter}`;
 
-export const useEditorStore = create<EditorStore>((set, get) => ({
-  tabs: [],
-  activeTabId: null,
-  tabOrder: [],
+export const useEditorStore = create<EditorStore>()(
+  persist(
+    (set, get) => ({
+      tabs: [],
+      activeTabId: null,
+      tabOrder: [],
 
-  addTab: (tabData) => {
-    const id = generateTabId();
-    const fileName = tabData.fileName ?? generateUntitledName();
-    const newTab: Tab = { ...tabData, id, fileName };
-    set((state) => ({
-      tabs: [...state.tabs, newTab],
-      activeTabId: id,
-      tabOrder: [...state.tabOrder, id],
-    }));
-    return id;
-  },
+      addTab: (tabData) => {
+        const id = generateTabId();
+        const fileName = tabData.fileName ?? generateUntitledName();
+        const newTab: Tab = {
+          ...tabData,
+          id,
+          fileName,
+          treeState: tabData.treeState ?? { ...defaultTreeState },
+        };
+        set((state) => ({
+          tabs: [...state.tabs, newTab],
+          activeTabId: id,
+          tabOrder: [...state.tabOrder, id],
+        }));
+        return id;
+      },
 
   closeTab: (id) => {
     set((state) => {
@@ -163,8 +192,53 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     }));
   },
 
+  updateTreeState: (updates) => {
+    set((state) => ({
+      tabs: state.tabs.map((tab) =>
+        tab.id === state.activeTabId
+          ? { ...tab, treeState: { ...tab.treeState, ...updates } }
+          : tab
+      ),
+    }));
+  },
+
+  getActiveTabTreeState: () => {
+    const tab = get().getActiveTab();
+    return tab?.treeState ?? defaultTreeState;
+  },
+
   getActiveTab: () => {
     const state = get();
     return state.tabs.find((t) => t.id === state.activeTabId);
   },
-}));
+    }),
+    {
+      name: STORAGE_KEY,
+      partialize: (state) => ({
+        tabs: state.tabs.map((tab) => ({
+          ...tab,
+          // Don't persist the full schema object, only the schemaId
+          schema: null,
+        })),
+        activeTabId: state.activeTabId,
+        tabOrder: state.tabOrder,
+      }),
+      onRehydrateStorage: () => (state) => {
+        if (state) {
+          // Restore tab/untitled counters from persisted tabs
+          const maxTabId = state.tabs.reduce((max, tab) => {
+            const match = tab.id.match(/^tab-(\d+)$/);
+            return match ? Math.max(max, parseInt(match[1], 10)) : max;
+          }, 0);
+          tabIdCounter = maxTabId;
+
+          const maxUntitled = state.tabs.reduce((max, tab) => {
+            const match = tab.fileName?.match(/^Untitled-(\d+)$/);
+            return match ? Math.max(max, parseInt(match[1], 10)) : max;
+          }, 0);
+          untitledCounter = maxUntitled;
+        }
+      },
+    }
+  )
+);

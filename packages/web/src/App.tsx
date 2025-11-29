@@ -189,24 +189,20 @@ function convertGitHubUrlToRaw(url: string): string {
 }
 
 export default function App() {
-  const { addTab } = useEditorStore();
+  const { tabs, addTab } = useEditorStore();
   const {
     schemas: schemaPresets,
-    hydrateFromStorage,
     mergeBundledSchemas,
+    getSchemaById,
   } = useSchemaStore();
-  const { hydrateFromStorage: hydrateSettings } = useSettingsStore();
+  useSettingsStore(); // Ensure settings store is initialized (persist middleware auto-hydrates)
   const [isLoading, setIsLoading] = useState(true);
   const [samples, setSamples] = useState<SampleFile[]>([]);
 
-  // Hydrate schemas and settings on mount
+  // Load bundled schemas on mount (persist middleware auto-hydrates from localStorage)
   useEffect(() => {
     async function initSchemas() {
-      // First hydrate from localStorage
-      hydrateFromStorage();
-      hydrateSettings();
-
-      // Then load bundled schemas and samples and merge (won't overwrite user schemas)
+      // Load bundled schemas and samples and merge (won't overwrite user schemas)
       const bundled = await loadBundledSchemas();
       const bundledSamples = await loadBundledSamples();
 
@@ -218,7 +214,32 @@ export default function App() {
       setIsLoading(false);
     }
     initSchemas();
-  }, [hydrateFromStorage, hydrateSettings, mergeBundledSchemas]);
+  }, [mergeBundledSchemas]);
+
+  // Rehydrate tab schemas after schemas are loaded
+  // (tabs persist schemaId but not the full schema object)
+  useEffect(() => {
+    if (isLoading || schemaPresets.length === 0) return;
+
+    const editorStore = useEditorStore.getState();
+    const tabsNeedingSchemas = editorStore.tabs.filter(
+      (tab) => tab.schemaId && !tab.schema
+    );
+
+    if (tabsNeedingSchemas.length === 0) return;
+
+    // Update each tab with its schema
+    for (const tab of tabsNeedingSchemas) {
+      const schema = getSchemaById(tab.schemaId!);
+      if (schema) {
+        useEditorStore.setState((state) => ({
+          tabs: state.tabs.map((t) =>
+            t.id === tab.id ? { ...t, schema: schema.schema } : t
+          ),
+        }));
+      }
+    }
+  }, [isLoading, schemaPresets, getSchemaById, tabs]);
 
   const handleNewTab = useCallback(
     (schemaId: string) => {

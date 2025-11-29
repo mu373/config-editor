@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import type { TreeNode } from './treeUtils';
-import { useTreeStore } from '../../store/treeStore';
+import { useTreeStore, useSelectedPath, useExpandedTreePaths } from '../../store/treeStore';
 
 interface SchemaTreeNodeProps {
   node: TreeNode;
@@ -77,9 +77,9 @@ function getPrimitiveIcon(node: TreeNode): React.ComponentType<{ className?: str
 
 function SchemaTreeNodeImpl({ node, depth, onSelect }: SchemaTreeNodeProps) {
   const toggleTreeNode = useTreeStore((s) => s.toggleTreeNode);
-  const selectedPath = useTreeStore((s) => s.selectedPath);
-  // Subscribe to expandedTreePaths so component re-renders when it changes
-  const expandedTreePaths = useTreeStore((s) => s.expandedTreePaths);
+  // Use selector hooks for reactive updates from editorStore's active tab
+  const selectedPath = useSelectedPath();
+  const expandedTreePaths = useExpandedTreePaths();
 
   const hasChildren = node.children && node.children.length > 0;
   const isExpanded = expandedTreePaths.has(node.path);

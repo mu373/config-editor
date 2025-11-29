@@ -2,7 +2,7 @@ import type { JSONSchema7 } from 'json-schema';
 import { resolveRef } from '@config-editor/core';
 import { VariantField } from './VariantField';
 import { BufferedInput } from '../ui/input';
-import { useTreeStore } from '../../store/treeStore';
+import { useTreeStore, useManuallyToggledFormPaths } from '../../store/treeStore';
 import type { GlobalExpandLevel } from './types';
 
 // Import type-specific field components
@@ -51,7 +51,8 @@ export function FormField(props: FormFieldProps) {
   } = props;
 
   // Use treeStore for form expansion state
-  const { isFormPathExpanded, toggleFormPath, manuallyToggledFormPaths } = useTreeStore();
+  const { isFormPathExpanded, toggleFormPath } = useTreeStore();
+  const manuallyToggledFormPaths = useManuallyToggledFormPaths();
 
   // Determine expanded state
   const _isManuallyToggled = manuallyToggledFormPaths.has(path);

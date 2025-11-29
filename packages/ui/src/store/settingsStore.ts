@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 
 export type MonacoTheme = 'vs' | 'vs-dark' | 'hc-black' | 'hc-light' | 'monokai' | 'dracula' | 'solarized-dark' | 'solarized-light';
 
@@ -29,7 +30,6 @@ interface SettingsStore {
   closeSchemasTab: () => void;
   openSettingsTab: () => void;
   closeSettingsTab: () => void;
-  hydrateFromStorage: () => void;
 }
 
 const defaultSettings: Settings = {
@@ -38,68 +38,61 @@ const defaultSettings: Settings = {
   accentColor: 'sky',
 };
 
-export const useSettingsStore = create<SettingsStore>((set, get) => ({
-  settings: defaultSettings,
-  activeView: 'editor',
-  schemasTabOpen: false,
-  settingsTabOpen: false,
-
-  setMonacoTheme: (theme) => {
-    const newSettings = { ...get().settings, monacoTheme: theme };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(newSettings));
-    set({ settings: newSettings });
-  },
-
-  setJsonIncludeComments: (value) => {
-    const newSettings = { ...get().settings, jsonIncludeComments: value };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(newSettings));
-    set({ settings: newSettings });
-  },
-
-  setAccentColor: (color) => {
-    const newSettings = { ...get().settings, accentColor: color };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(newSettings));
-    set({ settings: newSettings });
-    // Update the CSS custom property for accent color
-    document.documentElement.dataset.accent = color;
-  },
-
-  setActiveView: (view) => set({ activeView: view }),
-
-  openSchemasTab: () => set({ schemasTabOpen: true, activeView: 'schemas' }),
-
-  closeSchemasTab: () => {
-    const { settingsTabOpen } = get();
-    set({
+export const useSettingsStore = create<SettingsStore>()(
+  persist(
+    (set, get) => ({
+      settings: defaultSettings,
+      activeView: 'editor',
       schemasTabOpen: false,
-      activeView: settingsTabOpen ? 'settings' : 'editor'
-    });
-  },
-
-  openSettingsTab: () => set({ settingsTabOpen: true, activeView: 'settings' }),
-
-  closeSettingsTab: () => {
-    const { schemasTabOpen } = get();
-    set({
       settingsTabOpen: false,
-      activeView: schemasTabOpen ? 'schemas' : 'editor'
-    });
-  },
 
-  hydrateFromStorage: () => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const parsedSettings = { ...defaultSettings, ...JSON.parse(stored) };
-        set({ settings: parsedSettings });
-        // Apply accent color on load
-        document.documentElement.dataset.accent = parsedSettings.accentColor;
-      } else {
-        // Apply default accent color
-        document.documentElement.dataset.accent = defaultSettings.accentColor;
-      }
-    } catch (e) {
-      console.error('Failed to load settings:', e);
+      setMonacoTheme: (theme) => {
+        set({ settings: { ...get().settings, monacoTheme: theme } });
+      },
+
+      setJsonIncludeComments: (value) => {
+        set({ settings: { ...get().settings, jsonIncludeComments: value } });
+      },
+
+      setAccentColor: (color) => {
+        set({ settings: { ...get().settings, accentColor: color } });
+        // Update the CSS custom property for accent color
+        document.documentElement.dataset.accent = color;
+      },
+
+      setActiveView: (view) => set({ activeView: view }),
+
+      openSchemasTab: () => set({ schemasTabOpen: true, activeView: 'schemas' }),
+
+      closeSchemasTab: () => {
+        const { settingsTabOpen } = get();
+        set({
+          schemasTabOpen: false,
+          activeView: settingsTabOpen ? 'settings' : 'editor'
+        });
+      },
+
+      openSettingsTab: () => set({ settingsTabOpen: true, activeView: 'settings' }),
+
+      closeSettingsTab: () => {
+        const { schemasTabOpen } = get();
+        set({
+          settingsTabOpen: false,
+          activeView: schemasTabOpen ? 'schemas' : 'editor'
+        });
+      },
+    }),
+    {
+      name: STORAGE_KEY,
+      onRehydrateStorage: () => (state) => {
+        if (state) {
+          // Apply accent color on load
+          document.documentElement.dataset.accent = state.settings.accentColor;
+        } else {
+          // Apply default accent color
+          document.documentElement.dataset.accent = defaultSettings.accentColor;
+        }
+      },
     }
-  },
-}));
+  )
+);
