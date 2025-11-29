@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import type { JSONSchema7 } from 'json-schema';
 import { BufferedInput } from '../../ui/input';
 import { FieldLabel, FieldDescription } from './shared';
@@ -16,7 +17,7 @@ export interface NumberFieldProps {
   schemaType: 'number' | 'integer';
 }
 
-export function NumberField({
+export const NumberField = memo(function NumberField({
   name,
   schema,
   value,
@@ -66,4 +67,4 @@ export function NumberField({
       {description && !isArrayItem && <FieldDescription inline>{description}</FieldDescription>}
     </div>
   );
-}
+});

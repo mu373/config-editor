@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import type { JSONSchema7 } from 'json-schema';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { FieldLabel, FieldDescription, ChildrenContainer } from './shared';
@@ -21,7 +22,7 @@ export interface ObjectFieldProps {
   FormField: React.ComponentType<any>;
 }
 
-export function ObjectField({
+export const ObjectField = memo(function ObjectField({
   name,
   schema,
   value,
@@ -116,4 +117,4 @@ export function ObjectField({
       )}
     </div>
   );
-}
+});

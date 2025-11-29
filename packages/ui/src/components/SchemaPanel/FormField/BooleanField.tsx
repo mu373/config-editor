@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { FieldLabel, FieldDescription } from './shared';
 
 export interface BooleanFieldProps {
@@ -11,7 +12,7 @@ export interface BooleanFieldProps {
   description?: string;
 }
 
-export function BooleanField({
+export const BooleanField = memo(function BooleanField({
   name,
   value,
   path,
@@ -48,4 +49,4 @@ export function BooleanField({
       {description && !isArrayItem && <FieldDescription inline>{description}</FieldDescription>}
     </div>
   );
-}
+});

@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import type { JSONSchema7 } from 'json-schema';
 import { BufferedInput } from '../../ui/input';
 import { FieldLabel, FieldDescription } from './shared';
@@ -15,7 +16,7 @@ export interface StringFieldProps {
   description?: string;
 }
 
-export function StringField({
+export const StringField = memo(function StringField({
   name,
   schema,
   value,
@@ -102,4 +103,4 @@ export function StringField({
       {description && !isArrayItem && <FieldDescription inline>{description}</FieldDescription>}
     </div>
   );
-}
+});

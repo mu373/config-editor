@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import type { JSONSchema7 } from 'json-schema';
 import {
   Select,
@@ -21,7 +22,7 @@ export interface EnumFieldProps {
   description?: string;
 }
 
-export function EnumField({
+export const EnumField = memo(function EnumField({
   name,
   schema,
   value,
@@ -68,4 +69,4 @@ export function EnumField({
       {description && !isArrayItem && <FieldDescription inline>{description}</FieldDescription>}
     </div>
   );
-}
+});
