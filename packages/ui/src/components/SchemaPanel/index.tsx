@@ -2,6 +2,7 @@ import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import { SchemaForm, type GlobalExpandLevel } from './SchemaForm';
 import { SchemaTreeSidebar } from './SchemaTreeSidebar';
+import { ErrorBoundary } from '../ErrorBoundary';
 import {
   Select,
   SelectContent,
@@ -263,26 +264,34 @@ export function SchemaPanel({
 
       <div className="flex-1 overflow-hidden">
         {schema ? (
-          <PanelGroup direction="horizontal" autoSaveId="schema-panel-tree">
-            <Panel defaultSize={30} minSize={15} maxSize={50}>
-              <SchemaTreeSidebar
-                schema={schema}
-                value={formValue}
-                onNavigate={handleTreeNavigate}
-              />
-            </Panel>
-            <PanelResizeHandle className="w-1 bg-border hover:bg-ring transition-colors cursor-col-resize" />
-            <Panel defaultSize={70} minSize={50}>
-              <div className="h-full overflow-auto [scrollbar-gutter:stable]">
-                <SchemaForm
+          <ErrorBoundary
+            fallback={
+              <div className="p-4 text-sm text-destructive">
+                Schema panel error. Please check console.
+              </div>
+            }
+          >
+            <PanelGroup direction="horizontal" autoSaveId="schema-panel-tree">
+              <Panel defaultSize={30} minSize={15} maxSize={50}>
+                <SchemaTreeSidebar
                   schema={schema}
                   value={formValue}
-                  onChange={handleFormChange}
-                  globalExpandLevel={globalExpandLevel}
+                  onNavigate={handleTreeNavigate}
                 />
-              </div>
-            </Panel>
-          </PanelGroup>
+              </Panel>
+              <PanelResizeHandle className="w-1 bg-border hover:bg-ring transition-colors cursor-col-resize" />
+              <Panel defaultSize={70} minSize={50}>
+                <div className="h-full overflow-auto [scrollbar-gutter:stable]">
+                  <SchemaForm
+                    schema={schema}
+                    value={formValue}
+                    onChange={handleFormChange}
+                    globalExpandLevel={globalExpandLevel}
+                  />
+                </div>
+              </Panel>
+            </PanelGroup>
+          </ErrorBoundary>
         ) : (
           <div className="p-4 text-sm text-muted-foreground">No schema loaded</div>
         )}
