@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback } from 'react';
+import { useRef, useEffect, useCallback, useMemo } from 'react';
 import MonacoEditor, { type Monaco } from '@monaco-editor/react';
 import { configureMonacoYaml } from 'monaco-yaml';
 import type { editor } from 'monaco-editor';
@@ -8,15 +8,8 @@ import { useSettingsStore } from '../store/settingsStore';
 import { registerCustomThemes } from '../lib/monacoThemes';
 import { ToggleGroup, ToggleGroupItem } from './ui/toggle-group';
 import { Button } from './ui/button';
-import {
-  parseYaml,
-  stringifyYaml,
-  parseJson,
-  stringifyJson,
-  parseJsonc,
-  stringifyJsonc,
-  type Format,
-} from '@config-editor/core';
+import { DocumentModel, type Format } from '@config-editor/core';
+import { useMonacoSync } from '../hooks/useMonacoSync';
 
 export function Editor() {
   const { tabs, activeTabId, setContent, setFormat, markClean } = useEditorStore();
@@ -25,12 +18,51 @@ export function Editor() {
 
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<Monaco | null>(null);
-  // Track the last content we synced TO Monaco (from external source)
-  const lastSyncedContentRef = useRef<string | null>(null);
-  // Track content that Monaco has (including user edits)
-  const lastMonacoContentRef = useRef<string | null>(null);
-  // Flag to prevent feedback loop when we're updating from store
-  const isUpdatingFromStoreRef = useRef(false);
+
+  // Create DocumentModel for the active tab
+  const documentModel = useMemo(() => {
+    if (!activeTab) return null;
+
+    return DocumentModel.deserialize(
+      activeTab.content,
+      activeTab.format,
+      activeTab.schema ?? {}
+    );
+  }, [activeTabId]); // Recreate when tab changes
+
+  // Update documentModel when tab content/schema/format changes from store
+  useEffect(() => {
+    if (!documentModel || !activeTab) return;
+
+    documentModel.updateFromContent(activeTab.content);
+  }, [activeTab?.content]);
+
+  useEffect(() => {
+    if (!documentModel || !activeTab?.schema) return;
+
+    documentModel.setSchema(activeTab.schema);
+  }, [activeTab?.schema]);
+
+  useEffect(() => {
+    if (!documentModel || !activeTab) return;
+
+    documentModel.setFormat(activeTab.format);
+  }, [activeTab?.format]);
+
+  // Subscribe to documentModel changes and sync to store
+  useEffect(() => {
+    if (!documentModel) return;
+
+    const unsubscribe = documentModel.subscribe((doc) => {
+      const newContent = doc.serialize();
+      setContent(newContent);
+    });
+
+    return unsubscribe;
+  }, [documentModel, setContent]);
+
+  // Sync documentModel with Monaco editor
+  useMonacoSync(documentModel, editorRef.current);
 
   const handleEditorDidMount = (
     editor: editor.IStandaloneCodeEditor,
@@ -40,10 +72,6 @@ export function Editor() {
     monacoRef.current = monaco;
     // Register custom themes
     registerCustomThemes(monaco);
-    // Initialize content tracking with what Monaco starts with
-    const initialContent = editor.getValue();
-    lastMonacoContentRef.current = initialContent;
-    lastSyncedContentRef.current = initialContent;
   };
 
   // Update schema in monaco-yaml when active tab changes
@@ -68,102 +96,20 @@ export function Editor() {
     }
   }, [activeTab?.schema, activeTabId]);
 
-  // Sync external content changes (e.g. from SchemaPanel) to Monaco
-  // Only sync if the change came from outside Monaco (not from user typing)
-  useEffect(() => {
-    const editor = editorRef.current;
-    if (!editor || !activeTab) return;
-
-    const storeContent = activeTab.content;
-
-    // Skip if we're in the middle of an update cycle
-    if (isUpdatingFromStoreRef.current) return;
-
-    // Skip if this content matches what Monaco already has
-    // (meaning this update originated from Monaco itself)
-    if (storeContent === lastMonacoContentRef.current) return;
-
-    const model = editor.getModel();
-    if (!model) return;
-
-    isUpdatingFromStoreRef.current = true;
-
-    // Save cursor/scroll position
-    const position = editor.getPosition();
-    const scrollTop = editor.getScrollTop();
-    const selections = editor.getSelections();
-
-    // Use executeEdits for smoother update
-    editor.executeEdits('schema-panel-sync', [
-      {
-        range: model.getFullModelRange(),
-        text: storeContent,
-        forceMoveMarkers: true,
-      },
-    ]);
-
-    // Update our tracking refs
-    lastSyncedContentRef.current = storeContent;
-    lastMonacoContentRef.current = storeContent;
-
-    // Restore position and scroll
-    if (selections && selections.length > 0) {
-      editor.setSelections(selections);
-    } else if (position) {
-      const lineCount = model.getLineCount();
-      const newPosition = {
-        lineNumber: Math.min(position.lineNumber, lineCount),
-        column: Math.min(position.column, model.getLineMaxColumn(Math.min(position.lineNumber, lineCount))),
-      };
-      editor.setPosition(newPosition);
-    }
-    editor.setScrollTop(scrollTop);
-
-    isUpdatingFromStoreRef.current = false;
-  }, [activeTab?.content]);
-
-  const handleChange = (value: string | undefined) => {
-    if (value !== undefined) {
-      // Track what Monaco now has before updating store
-      lastMonacoContentRef.current = value;
-      setContent(value);
-    }
-  };
-
   const handleFormatToggle = useCallback(
     (newFormat: Format) => {
-      if (!activeTab || newFormat === activeTab.format) return;
+      if (!activeTab || !documentModel || newFormat === activeTab.format) return;
 
       try {
-        let parsed: unknown;
-
-        // Parse from current format
-        if (activeTab.format === 'yaml') {
-          parsed = parseYaml(activeTab.content);
-        } else if (activeTab.format === 'jsonc') {
-          parsed = parseJsonc(activeTab.content);
-        } else {
-          parsed = parseJson(activeTab.content);
-        }
-
-        // Stringify to new format
-        let newContent: string;
-        if (newFormat === 'yaml') {
-          newContent = stringifyYaml(parsed);
-        } else if (newFormat === 'jsonc') {
-          newContent = stringifyJsonc(parsed);
-        } else {
-          newContent = stringifyJson(parsed);
-        }
-
-        setContent(newContent);
+        // DocumentModel handles format conversion internally
+        documentModel.setFormat(newFormat);
         setFormat(newFormat);
       } catch (err) {
         console.error('Format conversion error:', err);
         alert('Cannot convert: content has syntax errors');
       }
     },
-    [activeTab, setContent, setFormat]
+    [activeTab, documentModel, setFormat]
   );
 
   const handleDownload = useCallback(() => {
@@ -236,7 +182,6 @@ export function Editor() {
           height="100%"
           language={language}
           defaultValue={activeTab.content}
-          onChange={handleChange}
           onMount={handleEditorDidMount}
           options={{
             minimap: { enabled: false },
