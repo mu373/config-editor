@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useRef, useEffect } from 'react';
 import type { JSONSchema7 } from 'json-schema';
+import { resolveRef, getDefaultValue } from '@config-editor/core';
 import { FormField } from './FormField';
 import { Plus, Trash2 } from 'lucide-react';
 
@@ -16,41 +17,6 @@ interface SchemaFormProps {
   value: Record<string, unknown>;
   onChange: (value: Record<string, unknown>) => void;
   globalExpandLevel: GlobalExpandLevel;
-}
-
-function resolveRef(schema: JSONSchema7, rootSchema: JSONSchema7): JSONSchema7 {
-  if (!schema.$ref) return schema;
-
-  const refPath = schema.$ref.replace('#/', '').split('/');
-  let resolved: Record<string, unknown> = rootSchema as Record<string, unknown>;
-
-  for (const part of refPath) {
-    resolved = resolved[part] as Record<string, unknown>;
-    if (!resolved) return schema;
-  }
-
-  return resolved as JSONSchema7;
-}
-
-function getDefaultValue(schema: JSONSchema7, rootSchema?: JSONSchema7): unknown {
-  const resolved = rootSchema ? resolveRef(schema, rootSchema) : schema;
-  if (resolved.default !== undefined) return resolved.default;
-
-  // Handle nullable types (anyOf/oneOf with null)
-  if (resolved.anyOf || resolved.oneOf) {
-    return null;
-  }
-
-  const schemaType = Array.isArray(resolved.type)
-    ? resolved.type.find((t) => t !== 'null')
-    : resolved.type;
-
-  if (schemaType === 'string') return '';
-  if (schemaType === 'number' || schemaType === 'integer') return 0;
-  if (schemaType === 'boolean') return false;
-  if (schemaType === 'array') return [];
-  if (schemaType === 'object') return {};
-  return null;
 }
 
 function setValueAtPath(

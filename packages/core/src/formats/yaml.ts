@@ -1,5 +1,7 @@
 import jsYaml from 'js-yaml';
 import { parseDocument } from 'yaml';
+import { resolveRef, getPropertySchema, getSchemaPropertyOrder } from '../schema/utils';
+import type { JSONSchema7 } from 'json-schema';
 
 export function yamlToJson(yamlContent: string): unknown {
   return jsYaml.load(yamlContent, {
@@ -34,83 +36,6 @@ export function stringifyYaml(value: unknown): string {
 }
 
 /**
- * Schema type for property ordering - compatible with JSONSchema7
- */
-interface SchemaLike {
-  properties?: Record<string, SchemaLike | boolean>;
-  additionalProperties?: boolean | SchemaLike;
-  patternProperties?: Record<string, SchemaLike | boolean>;
-  items?: SchemaLike | SchemaLike[] | boolean;
-  $ref?: string;
-  $defs?: Record<string, SchemaLike | boolean>;
-  definitions?: Record<string, SchemaLike | boolean>;
-}
-
-/**
- * Resolve a $ref in a schema
- */
-function resolveSchemaRef(schema: SchemaLike, rootSchema: SchemaLike): SchemaLike {
-  if (!schema.$ref) return schema;
-
-  const refPath = schema.$ref.replace('#/', '').split('/');
-  let resolved: Record<string, unknown> = rootSchema as Record<string, unknown>;
-
-  for (const part of refPath) {
-    resolved = resolved[part] as Record<string, unknown>;
-    if (!resolved) return schema;
-  }
-
-  return resolved as SchemaLike;
-}
-
-/**
- * Get the schema for a property, resolving $ref if needed
- */
-function getPropertySchema(
-  parentSchema: SchemaLike | undefined,
-  key: string,
-  rootSchema: SchemaLike | undefined
-): SchemaLike | undefined {
-  if (!parentSchema || !rootSchema) return undefined;
-
-  const resolved = resolveSchemaRef(parentSchema, rootSchema);
-
-  // Check direct properties first
-  const propSchema = resolved.properties?.[key];
-  if (propSchema && typeof propSchema === 'object') {
-    return resolveSchemaRef(propSchema, rootSchema);
-  }
-
-  // Check patternProperties
-  if (resolved.patternProperties) {
-    for (const [pattern, patternSchema] of Object.entries(resolved.patternProperties)) {
-      if (new RegExp(pattern).test(key) && typeof patternSchema === 'object') {
-        return resolveSchemaRef(patternSchema, rootSchema);
-      }
-    }
-  }
-
-  // Check additionalProperties
-  if (typeof resolved.additionalProperties === 'object') {
-    return resolveSchemaRef(resolved.additionalProperties, rootSchema);
-  }
-
-  return undefined;
-}
-
-/**
- * Get schema property order (returns array of property names in schema order)
- */
-function getSchemaPropertyOrder(schema: SchemaLike | undefined, rootSchema: SchemaLike | undefined): string[] {
-  if (!schema || !rootSchema) return [];
-
-  const resolved = resolveSchemaRef(schema, rootSchema);
-  if (!resolved.properties) return [];
-
-  return Object.keys(resolved.properties);
-}
-
-/**
  * Update YAML content while preserving comments and formatting.
  * This uses string manipulation to preserve exact spacing and comments.
  *
@@ -122,7 +47,7 @@ function getSchemaPropertyOrder(schema: SchemaLike | undefined, rootSchema: Sche
 export function updateYamlPreservingComments(
   originalYaml: string,
   newValue: unknown,
-  schema?: SchemaLike
+  schema?: JSONSchema7
 ): string {
   try {
     // Parse to get the old values
@@ -274,8 +199,8 @@ function updateYamlLines(
   newValue: any,
   startIdx: number,
   indent: string = '',
-  schema?: SchemaLike,
-  rootSchema?: SchemaLike
+  schema?: JSONSchema7,
+  rootSchema?: JSONSchema7
 ): string[] {
   let result = [...lines];
 
@@ -336,7 +261,7 @@ function updateYamlLines(
       // Key exists - update it
       if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
         // Nested object - recurse with child schema
-        const childSchema = getPropertySchema(schema, key, rootSchema);
+        const childSchema = schema && rootSchema ? getPropertySchema(schema, key, rootSchema) : undefined;
         result = updateYamlLines(result, oldVal, value, existingPos.lineIdx + 1, indent + '  ', childSchema, rootSchema);
       } else if (Array.isArray(value)) {
         // Array value - remove old content and insert new

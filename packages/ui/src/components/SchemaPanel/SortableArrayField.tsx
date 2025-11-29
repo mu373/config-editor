@@ -24,6 +24,7 @@ import {
   ChevronsUpDown,
 } from 'lucide-react';
 import type { JSONSchema7 } from 'json-schema';
+import { resolveRef, getDefaultValue } from '@config-editor/core';
 import { FormField, FieldDescription, ChildrenContainer, FieldLabel, ConfirmDeleteButton, type GlobalExpandLevel } from './FormField';
 import { useTreeStore } from '../../store/treeStore';
 
@@ -129,30 +130,6 @@ interface SortableArrayFieldProps {
   globalExpandLevel?: GlobalExpandLevel;
   /** Hide the header and render only the array content (for use inside DictionaryField) */
   hideHeader?: boolean;
-}
-
-function resolveRef(schema: JSONSchema7, rootSchema: JSONSchema7): JSONSchema7 {
-  if (!schema.$ref) return schema;
-
-  const refPath = schema.$ref.replace('#/', '').split('/');
-  let resolved: Record<string, unknown> = rootSchema as Record<string, unknown>;
-
-  for (const part of refPath) {
-    resolved = resolved[part] as Record<string, unknown>;
-    if (!resolved) return schema;
-  }
-
-  return resolved as JSONSchema7;
-}
-
-function getDefaultValue(schema: JSONSchema7): unknown {
-  if (schema.default !== undefined) return schema.default;
-  if (schema.type === 'string') return '';
-  if (schema.type === 'number' || schema.type === 'integer') return 0;
-  if (schema.type === 'boolean') return false;
-  if (schema.type === 'array') return [];
-  if (schema.type === 'object') return {};
-  return null;
 }
 
 export function SortableArrayField({

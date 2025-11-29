@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { ChevronDown, ChevronRight, Trash2 } from 'lucide-react';
 import type { JSONSchema7 } from 'json-schema';
+import { resolveRef, getDefaultValue } from '@config-editor/core';
 import { SortableArrayField } from './SortableArrayField';
 import { VariantField } from './VariantField';
 import { DictionaryField } from './DictionaryField';
@@ -156,30 +157,6 @@ interface FormFieldProps {
   summaryLabel?: string | null;
   /** Global expand level - used as initial default only */
   globalExpandLevel?: GlobalExpandLevel;
-}
-
-function resolveRef(schema: JSONSchema7, rootSchema: JSONSchema7): JSONSchema7 {
-  if (!schema.$ref) return schema;
-
-  const refPath = schema.$ref.replace('#/', '').split('/');
-  let resolved: Record<string, unknown> = rootSchema as Record<string, unknown>;
-
-  for (const part of refPath) {
-    resolved = resolved[part] as Record<string, unknown>;
-    if (!resolved) return schema;
-  }
-
-  return resolved as JSONSchema7;
-}
-
-function getDefaultValue(schema: JSONSchema7): unknown {
-  if (schema.default !== undefined) return schema.default;
-  if (schema.type === 'string') return '';
-  if (schema.type === 'number' || schema.type === 'integer') return 0;
-  if (schema.type === 'boolean') return false;
-  if (schema.type === 'array') return [];
-  if (schema.type === 'object') return {};
-  return null;
 }
 
 export function FormField({

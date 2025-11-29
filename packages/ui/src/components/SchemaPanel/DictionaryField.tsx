@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ChevronDown, ChevronRight, Plus } from 'lucide-react';
 import type { JSONSchema7 } from 'json-schema';
+import { resolveRef, getDefaultValue, isValidObjectKey } from '@config-editor/core';
 import { FormField, FieldDescription, ChildrenContainer, FieldLabel, ConfirmDeleteButton, type GlobalExpandLevel } from './FormField';
 import { SortableArrayField } from './SortableArrayField';
 import { Input } from '../ui/input';
@@ -18,33 +19,6 @@ interface DictionaryFieldProps {
   rootSchema?: JSONSchema7;
   /** Global expand level - used as initial default only */
   globalExpandLevel?: GlobalExpandLevel;
-}
-
-function resolveRef(schema: JSONSchema7, rootSchema: JSONSchema7): JSONSchema7 {
-  if (!schema.$ref) return schema;
-
-  const refPath = schema.$ref.replace('#/', '').split('/');
-  let resolved: Record<string, unknown> = rootSchema as Record<string, unknown>;
-
-  for (const part of refPath) {
-    resolved = resolved[part] as Record<string, unknown>;
-    if (!resolved) return schema;
-  }
-
-  return resolved as JSONSchema7;
-}
-
-function getDefaultValueForSchema(schema: JSONSchema7, rootSchema?: JSONSchema7): unknown {
-  // Resolve $ref if present
-  const resolvedSchema = rootSchema && schema.$ref ? resolveRef(schema, rootSchema) : schema;
-
-  if (resolvedSchema.default !== undefined) return resolvedSchema.default;
-  if (resolvedSchema.type === 'string') return '';
-  if (resolvedSchema.type === 'number' || resolvedSchema.type === 'integer') return 0;
-  if (resolvedSchema.type === 'boolean') return false;
-  if (resolvedSchema.type === 'array') return [];
-  if (resolvedSchema.type === 'object') return {};
-  return null;
 }
 
 export function DictionaryField({
@@ -160,11 +134,18 @@ export function DictionaryField({
 
   const handleAddKey = () => {
     if (!newKeyInput.trim()) return;
-    if (value && newKeyInput in value) {
-      // Key already exists
+
+    if (!isValidObjectKey(newKeyInput)) {
+      alert('Invalid key name. Reserved keywords like __proto__, constructor are not allowed.');
       return;
     }
-    const defaultValue = getDefaultValueForSchema(itemSchema, rootSchema);
+
+    if (value && newKeyInput in value) {
+      alert('Key already exists');
+      return;
+    }
+
+    const defaultValue = getDefaultValue(itemSchema, rootSchema);
     onChange(path, { ...value, [newKeyInput]: defaultValue });
     setNewKeyInput('');
     setIsAddingKey(false);
@@ -178,7 +159,16 @@ export function DictionaryField({
 
   const handleRenameKey = (oldKey: string, newKey: string) => {
     if (!newKey.trim() || newKey === oldKey) return;
-    if (newKey in value) return; // Key already exists
+
+    if (!isValidObjectKey(newKey)) {
+      alert('Invalid key name. Reserved keywords like __proto__, constructor are not allowed.');
+      return;
+    }
+
+    if (newKey in value) {
+      alert('Key already exists');
+      return;
+    }
 
     const newValue: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(value)) {
@@ -240,42 +230,54 @@ export function DictionaryField({
           {/* Add new key input */}
           {isAddingKey && (
             <div className="mb-3 p-2 bg-primary/10 rounded border border-primary/30">
-              <div className="flex items-center gap-2">
-                <Input
-                  type="text"
-                  size="sm"
-                  value={newKeyInput}
-                  onChange={(e) => setNewKeyInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleAddKey();
-                    if (e.key === 'Escape') {
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="text"
+                    size="sm"
+                    value={newKeyInput}
+                    onChange={(e) => setNewKeyInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleAddKey();
+                      if (e.key === 'Escape') {
+                        setIsAddingKey(false);
+                        setNewKeyInput('');
+                      }
+                    }}
+                    placeholder="Enter key name..."
+                    className={`flex-1 ${newKeyInput && !isValidObjectKey(newKeyInput) ? 'border-destructive focus-visible:ring-destructive' : ''}`}
+                    autoFocus
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handleAddKey}
+                    disabled={!newKeyInput.trim() || !isValidObjectKey(newKeyInput)}
+                  >
+                    Add
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
                       setIsAddingKey(false);
                       setNewKeyInput('');
-                    }
-                  }}
-                  placeholder="Enter key name..."
-                  className="flex-1"
-                  autoFocus
-                />
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={handleAddKey}
-                  disabled={!newKeyInput.trim()}
-                >
-                  Add
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setIsAddingKey(false);
-                    setNewKeyInput('');
-                  }}
-                >
-                  Cancel
-                </Button>
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+                {newKeyInput && !isValidObjectKey(newKeyInput) && (
+                  <p className="text-xs text-destructive">
+                    Invalid key: reserved keyword
+                  </p>
+                )}
+                {newKeyInput && isValidObjectKey(newKeyInput) && value && newKeyInput in value && (
+                  <p className="text-xs text-destructive">
+                    Key already exists
+                  </p>
+                )}
               </div>
             </div>
           )}
@@ -365,6 +367,12 @@ function DictionaryEntry({
 
   const handleKeySubmit = () => {
     if (editKey.trim() && editKey !== entryKey) {
+      if (!isValidObjectKey(editKey)) {
+        alert('Invalid key name. Reserved keywords like __proto__, constructor are not allowed.');
+        setEditKey(entryKey);
+        setIsEditing(false);
+        return;
+      }
       onRename(editKey);
     }
     setIsEditing(false);
