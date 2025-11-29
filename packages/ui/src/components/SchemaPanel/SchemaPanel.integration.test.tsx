@@ -81,7 +81,7 @@ describe('SchemaPanel Integration Tests', () => {
       document = new DocumentModel(initialData, schema, 'yaml');
 
       const user = userEvent.setup();
-      render(<SchemaPanel document={document} globalExpandLevel="all" />);
+      render(<SchemaPanel document={document} />);
 
       // Find the theme input
       const themeInput = await screen.findByDisplayValue('dark');
@@ -105,7 +105,7 @@ describe('SchemaPanel Integration Tests', () => {
       document = new DocumentModel(initialData, schema, 'yaml');
 
       const user = userEvent.setup();
-      render(<SchemaPanel document={document} globalExpandLevel="all" />);
+      render(<SchemaPanel document={document} />);
 
       // Find the first tag input
       const firstTagInput = await screen.findByDisplayValue('frontend');
@@ -130,7 +130,7 @@ describe('SchemaPanel Integration Tests', () => {
       };
       document = new DocumentModel(initialData, schema, 'yaml');
 
-      render(<SchemaPanel document={document} globalExpandLevel="all" />);
+      render(<SchemaPanel document={document} />);
 
       // Verify initial value
       expect(screen.getByDisplayValue('John')).toBeInTheDocument();
@@ -153,7 +153,7 @@ describe('SchemaPanel Integration Tests', () => {
       };
       document = new DocumentModel(initialData, schema, 'yaml');
 
-      render(<SchemaPanel document={document} globalExpandLevel="all" />);
+      render(<SchemaPanel document={document} />);
 
       // Verify initial value
       expect(screen.getByDisplayValue('dark')).toBeInTheDocument();
@@ -179,7 +179,7 @@ describe('SchemaPanel Integration Tests', () => {
       };
       document = new DocumentModel(initialData, schema, 'yaml');
 
-      render(<SchemaPanel document={document} globalExpandLevel="all" />);
+      render(<SchemaPanel document={document} />);
 
       // Verify initial value
       expect(screen.getByDisplayValue('frontend')).toBeInTheDocument();
@@ -266,7 +266,7 @@ settings:
       document = new DocumentModel(initialData, schema, 'yaml');
 
       const user = userEvent.setup();
-      render(<SchemaPanel document={document} globalExpandLevel="all" />);
+      render(<SchemaPanel document={document} />);
 
       // Find the second tag (index 1)
       const secondTag = await screen.findByDisplayValue('tag2');
@@ -298,7 +298,7 @@ settings:
       const originalSettings = originalData.settings;
 
       const user = userEvent.setup();
-      render(<SchemaPanel document={document} globalExpandLevel="all" />);
+      render(<SchemaPanel document={document} />);
 
       // Update the theme
       const themeInput = await screen.findByDisplayValue('dark');

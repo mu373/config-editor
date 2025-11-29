@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { ChevronDown, ChevronRight, Plus } from 'lucide-react';
 import type { JSONSchema7 } from 'json-schema';
 import { resolveRef, getDefaultValue, isValidObjectKey } from '@config-editor/core';
@@ -32,10 +32,8 @@ export function DictionaryField({
   rootSchema,
   globalExpandLevel = null,
 }: DictionaryFieldProps) {
-  // Use treeStore for form expansion state
-  // Subscribe to manuallyToggledFormPaths to trigger re-renders when paths are expanded via navigation
-  const { isFormPathExpanded, toggleFormPath, manuallyToggledFormPaths, selectedPath } = useTreeStore();
-  const _isManuallyToggled = manuallyToggledFormPaths.has(path);
+  // Use treeStore for ALL expansion state (centralized, path-based)
+  const { isFormPathExpanded, toggleFormPath } = useTreeStore();
 
   const isExpanded = isFormPathExpanded(path, depth, globalExpandLevel);
 
@@ -66,70 +64,24 @@ export function DictionaryField({
   }
   const entries = Object.entries(value || {});
 
-  // Track expanded state for each entry (controlled mode for Collapse/Expand All)
-  const [entryExpandedStates, setEntryExpandedStates] = useState<Record<string, boolean>>(() => {
-    const initial: Record<string, boolean> = {};
-    entries.forEach(([key]) => {
-      initial[key] = depth < 2;
-    });
-    return initial;
-  });
-
-  // Sync with treeStore: when navigation selects a dictionary entry path, expand it locally
-  useEffect(() => {
-    if (!selectedPath) return;
-    // Check if selectedPath is a child of this dictionary (e.g., "services.web" or "services.web.ports")
-    const dictPrefix = `${path}.`;
-    if (selectedPath.startsWith(dictPrefix)) {
-      // Extract the key from the path (first segment after the prefix)
-      const remainder = selectedPath.slice(dictPrefix.length);
-      const key = remainder.split('.')[0].split('[')[0]; // Handle both "web.ports" and "web[0]"
-      if (key && entries.some(([k]) => k === key)) {
-        setEntryExpandedStates(prev => {
-          if (prev[key]) return prev;
-          return { ...prev, [key]: true };
-        });
-      }
-    }
-  }, [selectedPath, path, entries]);
-
-  // Sync expanded states when entries change (new keys added)
-  useEffect(() => {
-    setEntryExpandedStates((prev) => {
-      const updated = { ...prev };
-      entries.forEach(([key]) => {
-        if (!(key in updated)) {
-          updated[key] = true; // New entries start expanded
-        }
-      });
-      // Remove keys that no longer exist
-      Object.keys(updated).forEach((key) => {
-        if (!entries.some(([k]) => k === key)) {
-          delete updated[key];
-        }
-      });
-      return updated;
-    });
-  }, [entries.map(([k]) => k).join(',')]);
-
   const handleCollapseAll = () => {
-    const collapsed: Record<string, boolean> = {};
+    // Collapse all dictionary entries by toggling their paths
     entries.forEach(([key]) => {
-      collapsed[key] = false;
+      const entryPath = `${path}.${key}`;
+      if (isFormPathExpanded(entryPath, depth + 1, globalExpandLevel)) {
+        toggleFormPath(entryPath);
+      }
     });
-    setEntryExpandedStates(collapsed);
   };
 
   const handleExpandAll = () => {
-    const expanded: Record<string, boolean> = {};
+    // Expand all dictionary entries by toggling their paths
     entries.forEach(([key]) => {
-      expanded[key] = true;
+      const entryPath = `${path}.${key}`;
+      if (!isFormPathExpanded(entryPath, depth + 1, globalExpandLevel)) {
+        toggleFormPath(entryPath);
+      }
     });
-    setEntryExpandedStates(expanded);
-  };
-
-  const handleEntryExpandedChange = (key: string, expanded: boolean) => {
-    setEntryExpandedStates((prev) => ({ ...prev, [key]: expanded }));
   };
 
   const handleAddKey = () => {
@@ -295,8 +247,7 @@ export function DictionaryField({
               onRename={(newKey) => handleRenameKey(key, newKey)}
               depth={depth + 1}
               rootSchema={rootSchema}
-              isExpandedControlled={entryExpandedStates[key]}
-              onExpandedChange={(expanded) => handleEntryExpandedChange(key, expanded)}
+              globalExpandLevel={globalExpandLevel}
             />
           ))}
 
@@ -327,10 +278,8 @@ interface DictionaryEntryProps {
   onRename: (newKey: string) => void;
   depth: number;
   rootSchema?: JSONSchema7;
-  /** Controlled expanded state from parent */
-  isExpandedControlled?: boolean;
-  /** Callback when expanded state changes */
-  onExpandedChange?: (expanded: boolean) => void;
+  /** Global expand level - used as initial default only */
+  globalExpandLevel?: GlobalExpandLevel;
 }
 
 function DictionaryEntry({
@@ -343,26 +292,16 @@ function DictionaryEntry({
   onRename,
   depth,
   rootSchema,
-  isExpandedControlled,
-  onExpandedChange,
+  globalExpandLevel = null,
 }: DictionaryEntryProps) {
-  // Use treeStore for form expansion state
-  // Subscribe to manuallyToggledFormPaths to trigger re-renders when paths are expanded via navigation
-  const { isFormPathExpanded, toggleFormPath, manuallyToggledFormPaths } = useTreeStore();
-  const _isManuallyToggled = manuallyToggledFormPaths.has(path);
+  // Use treeStore for ALL expansion state (centralized, path-based)
+  const { isFormPathExpanded, toggleFormPath } = useTreeStore();
   const [isEditing, setIsEditing] = useState(false);
   const [editKey, setEditKey] = useState(entryKey);
 
-  // Use controlled state if provided, otherwise treeStore
-  const isExpanded = isExpandedControlled !== undefined
-    ? isExpandedControlled
-    : isFormPathExpanded(path, depth, null);
+  const isExpanded = isFormPathExpanded(path, depth, globalExpandLevel);
   const setIsExpanded = () => {
-    if (onExpandedChange) {
-      onExpandedChange(!isExpanded);
-    } else {
-      toggleFormPath(path);
-    }
+    toggleFormPath(path);
   };
 
   const handleKeySubmit = () => {

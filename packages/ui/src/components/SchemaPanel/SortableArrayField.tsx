@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useCallback } from 'react';
 import {
   DndContext,
   closestCenter,
@@ -146,57 +146,8 @@ export function SortableArrayField({
 }: SortableArrayFieldProps) {
   const items = Array.isArray(value) ? value : [];
 
-  // Use treeStore for form expansion state
-  // Subscribe to manuallyToggledFormPaths to trigger re-renders when paths are expanded via navigation
-  const { isFormPathExpanded, toggleFormPath, manuallyToggledFormPaths, expandedFormPaths, selectedPath } = useTreeStore();
-  const _isManuallyToggled = manuallyToggledFormPaths.has(path);
-
-  const [expandedItems, setExpandedItems] = useState<Set<number>>(new Set());
-  // Track which array items have been manually toggled (by index)
-  const [manuallyToggledItems, setManuallyToggledItems] = useState<Set<number>>(new Set());
-
-  // Sync with treeStore: when navigation selects an array item path, expand it locally
-  useEffect(() => {
-    if (!selectedPath) return;
-    // Check if selectedPath is a child of this array (e.g., "scenarios[0]" or "scenarios[0].name")
-    const arrayItemMatch = selectedPath.match(new RegExp(`^${path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\[(\\d+)\\]`));
-    if (arrayItemMatch) {
-      const index = parseInt(arrayItemMatch[1], 10);
-      if (index >= 0 && index < items.length) {
-        setExpandedItems(prev => {
-          if (prev.has(index)) return prev;
-          const next = new Set(prev);
-          next.add(index);
-          return next;
-        });
-      }
-    }
-  }, [selectedPath, path, items.length]);
-
-  // When globalExpandLevel changes, update array item expansion states
-  // but only for items that haven't been manually toggled
-  useEffect(() => {
-    if (globalExpandLevel === null || globalExpandLevel === undefined) return;
-
-    // For array items, their depth is depth + 1 (since array itself is at depth)
-    const itemDepth = depth + 1;
-    const shouldItemsExpand = globalExpandLevel === 'all' || itemDepth < globalExpandLevel;
-
-    setExpandedItems(prev => {
-      const next = new Set(prev);
-      items.forEach((_, index) => {
-        // Only update items that haven't been manually toggled
-        if (!manuallyToggledItems.has(index)) {
-          if (shouldItemsExpand) {
-            next.add(index);
-          } else {
-            next.delete(index);
-          }
-        }
-      });
-      return next;
-    });
-  }, [globalExpandLevel, items.length, depth, manuallyToggledItems]);
+  // Use treeStore for ALL expansion state (centralized, path-based)
+  const { isFormPathExpanded, toggleFormPath } = useTreeStore();
 
   const isExpanded = isFormPathExpanded(path, depth, globalExpandLevel);
 
@@ -261,12 +212,24 @@ export function SortableArrayField({
   );
 
   const handleCollapseAll = useCallback(() => {
-    setExpandedItems(new Set());
-  }, []);
+    // Collapse all array items by toggling their paths
+    items.forEach((_, index) => {
+      const itemPath = `${path}[${index}]`;
+      if (isFormPathExpanded(itemPath, depth + 1, globalExpandLevel)) {
+        toggleFormPath(itemPath);
+      }
+    });
+  }, [items, path, depth, globalExpandLevel, isFormPathExpanded, toggleFormPath]);
 
   const handleExpandAll = useCallback(() => {
-    setExpandedItems(new Set(items.map((_, i) => i)));
-  }, [items]);
+    // Expand all array items by toggling their paths
+    items.forEach((_, index) => {
+      const itemPath = `${path}[${index}]`;
+      if (!isFormPathExpanded(itemPath, depth + 1, globalExpandLevel)) {
+        toggleFormPath(itemPath);
+      }
+    });
+  }, [items, path, depth, globalExpandLevel, isFormPathExpanded, toggleFormPath]);
 
   // When hideHeader is true, render just the array content without header
   // Used when embedded inside DictionaryField which already provides a header
@@ -317,19 +280,6 @@ export function SortableArrayField({
                   onChange={handleItemChange}
                   depth={1}
                   rootSchema={rootSchema}
-                  isExpandedControlled={itemsAreObjects ? expandedItems.has(index) : undefined}
-                  onExpandedChange={itemsAreObjects ? (expanded) => {
-                    setManuallyToggledItems(prev => new Set(prev).add(index));
-                    setExpandedItems(prev => {
-                      const next = new Set(prev);
-                      if (expanded) {
-                        next.add(index);
-                      } else {
-                        next.delete(index);
-                      }
-                      return next;
-                    });
-                  } : undefined}
                   summaryLabel={getSummaryValue(item, resolvedItemSchema, rootSchema)}
                   globalExpandLevel={globalExpandLevel}
                 />
@@ -424,20 +374,6 @@ export function SortableArrayField({
                       onChange={handleItemChange}
                       depth={1}
                       rootSchema={rootSchema}
-                      isExpandedControlled={itemsAreObjects ? expandedItems.has(index) : undefined}
-                      onExpandedChange={itemsAreObjects ? (expanded) => {
-                        // Mark this item as manually toggled
-                        setManuallyToggledItems(prev => new Set(prev).add(index));
-                        setExpandedItems(prev => {
-                          const next = new Set(prev);
-                          if (expanded) {
-                            next.add(index);
-                          } else {
-                            next.delete(index);
-                          }
-                          return next;
-                        });
-                      } : undefined}
                       summaryLabel={getSummaryValue(item, resolvedItemSchema, rootSchema)}
                       globalExpandLevel={globalExpandLevel}
                     />
@@ -531,20 +467,6 @@ export function SortableArrayField({
                     onChange={handleItemChange}
                     depth={0}
                     rootSchema={rootSchema}
-                    isExpandedControlled={itemsAreObjects ? expandedItems.has(index) : undefined}
-                    onExpandedChange={itemsAreObjects ? (expanded) => {
-                      // Mark this item as manually toggled
-                      setManuallyToggledItems(prev => new Set(prev).add(index));
-                      setExpandedItems(prev => {
-                        const next = new Set(prev);
-                        if (expanded) {
-                          next.add(index);
-                        } else {
-                          next.delete(index);
-                        }
-                        return next;
-                      });
-                    } : undefined}
                     summaryLabel={getSummaryValue(item, resolvedItemSchema, rootSchema)}
                     globalExpandLevel={globalExpandLevel}
                   />
