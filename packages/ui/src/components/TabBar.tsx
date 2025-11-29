@@ -1,7 +1,24 @@
 import { X, Menu, Settings, Download, FilePlus, FolderOpen, Cog } from 'lucide-react';
-import { useEditorStore } from '../store/editorStore';
+import { useEditorStore, type Tab, SCHEMAS_TAB_ID, SETTINGS_TAB_ID } from '../store/editorStore';
 import { useSettingsStore, type ActiveView } from '../store/settingsStore';
+import { useEffect } from 'react';
 import { detectFormat, type JSONSchema, type SchemaPreset } from '@config-editor/core';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  horizontalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import {
   Menubar,
   MenubarContent,
@@ -13,6 +30,61 @@ import {
   MenubarSubTrigger,
   MenubarTrigger,
 } from './ui/menubar';
+
+interface SortableTabProps {
+  id: string;
+  isActive: boolean;
+  onSelect: () => void;
+  onClose: (e: React.MouseEvent) => void;
+  icon?: React.ReactNode;
+  label: string;
+  isDirty?: boolean;
+}
+
+function SortableTab({ id, isActive, onSelect, onClose, icon, label, isDirty }: SortableTabProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 50 : undefined,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <button
+      ref={setNodeRef}
+      style={style}
+      onClick={onSelect}
+      className={`flex items-center gap-2 px-3 py-2 text-sm border-r border-border min-w-[120px] max-w-[200px] group cursor-grab active:cursor-grabbing ${
+        isActive
+          ? 'bg-background text-foreground border-b-2 border-b-primary'
+          : 'text-muted-foreground hover:bg-accent'
+      } ${isDragging ? 'bg-muted' : ''}`}
+      {...attributes}
+      {...listeners}
+    >
+      {icon}
+      <span className="truncate flex-1 text-left">{label}</span>
+      {isDirty && (
+        <span className="w-2 h-2 rounded-full bg-orange-400 flex-shrink-0" />
+      )}
+      <span
+        onClick={onClose}
+        className="p-0.5 rounded hover:bg-accent opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+      >
+        <X className="w-3 h-3" />
+      </span>
+    </button>
+  );
+}
 
 interface TabBarProps {
   schemas: SchemaPreset[];
@@ -27,7 +99,7 @@ export function TabBar({
   defaultSchema,
   defaultSchemaId,
 }: TabBarProps) {
-  const { tabs, activeTabId, setActiveTab, closeTab, addTab } = useEditorStore();
+  const { tabs, activeTabId, setActiveTab, closeTab, addTab, reorderTabs, tabOrder, addToTabOrder, removeFromTabOrder } = useEditorStore();
   const {
     activeView,
     setActiveView,
@@ -38,6 +110,49 @@ export function TabBar({
     openSettingsTab,
     closeSettingsTab,
   } = useSettingsStore();
+
+  // Add/remove special tabs from tabOrder when they open/close
+  useEffect(() => {
+    if (schemasTabOpen) {
+      addToTabOrder(SCHEMAS_TAB_ID);
+    } else {
+      removeFromTabOrder(SCHEMAS_TAB_ID);
+    }
+  }, [schemasTabOpen, addToTabOrder, removeFromTabOrder]);
+
+  useEffect(() => {
+    if (settingsTabOpen) {
+      addToTabOrder(SETTINGS_TAB_ID);
+    } else {
+      removeFromTabOrder(SETTINGS_TAB_ID);
+    }
+  }, [settingsTabOpen, addToTabOrder, removeFromTabOrder]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  // Build the ordered list of all visible tabs
+  const tabsById = new Map(tabs.map((tab) => [tab.id, tab]));
+  const orderedTabIds = tabOrder.filter((id) => {
+    if (id === SCHEMAS_TAB_ID) return schemasTabOpen;
+    if (id === SETTINGS_TAB_ID) return settingsTabOpen;
+    return tabsById.has(id);
+  });
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      reorderTabs(active.id as string, over.id as string);
+    }
+  };
 
   const handleOpenFile = () => {
     const input = document.createElement('input');
@@ -142,81 +257,70 @@ export function TabBar({
 
       {/* Tab List */}
       <div className="flex-1 flex items-center overflow-x-auto">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => {
-              setActiveTab(tab.id);
-              setActiveView('editor');
-            }}
-            className={`flex items-center gap-2 px-3 py-2 text-sm border-r border-border min-w-[120px] max-w-[200px] group ${
-              tab.id === activeTabId && activeView === 'editor'
-                ? 'bg-background text-foreground border-b-2 border-b-primary'
-                : 'text-muted-foreground hover:bg-accent'
-            }`}
-          >
-            <span className="truncate flex-1 text-left">
-              {tab.fileName || 'Untitled'}
-            </span>
-            {tab.isDirty && (
-              <span className="w-2 h-2 rounded-full bg-orange-400 flex-shrink-0" />
-            )}
-            <span
-              onClick={(e) => handleCloseTab(e, tab.id, tab.isDirty)}
-              className="p-0.5 rounded hover:bg-accent opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
-            >
-              <X className="w-3 h-3" />
-            </span>
-          </button>
-        ))}
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext items={orderedTabIds} strategy={horizontalListSortingStrategy}>
+            {orderedTabIds.map((tabId) => {
+              // Schemas Tab
+              if (tabId === SCHEMAS_TAB_ID) {
+                return (
+                  <SortableTab
+                    key={SCHEMAS_TAB_ID}
+                    id={SCHEMAS_TAB_ID}
+                    isActive={activeView === 'schemas'}
+                    onSelect={() => setActiveView('schemas')}
+                    onClose={(e) => {
+                      e.stopPropagation();
+                      closeSchemasTab();
+                    }}
+                    icon={<Settings className="w-4 h-4" />}
+                    label="Schemas"
+                  />
+                );
+              }
 
-        {/* Schemas Tab */}
-        {schemasTabOpen && (
-          <button
-            onClick={() => setActiveView('schemas')}
-            className={`flex items-center gap-2 px-3 py-2 text-sm border-r border-border min-w-[120px] max-w-[200px] group ${
-              activeView === 'schemas'
-                ? 'bg-background text-foreground border-b-2 border-b-primary'
-                : 'text-muted-foreground hover:bg-accent'
-            }`}
-          >
-            <Settings className="w-4 h-4" />
-            <span className="truncate flex-1 text-left">Schemas</span>
-            <span
-              onClick={(e) => {
-                e.stopPropagation();
-                closeSchemasTab();
-              }}
-              className="p-0.5 rounded hover:bg-accent opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
-            >
-              <X className="w-3 h-3" />
-            </span>
-          </button>
-        )}
+              // Settings Tab
+              if (tabId === SETTINGS_TAB_ID) {
+                return (
+                  <SortableTab
+                    key={SETTINGS_TAB_ID}
+                    id={SETTINGS_TAB_ID}
+                    isActive={activeView === 'settings'}
+                    onSelect={() => setActiveView('settings')}
+                    onClose={(e) => {
+                      e.stopPropagation();
+                      closeSettingsTab();
+                    }}
+                    icon={<Cog className="w-4 h-4" />}
+                    label="Settings"
+                  />
+                );
+              }
 
-        {/* Settings Tab */}
-        {settingsTabOpen && (
-          <button
-            onClick={() => setActiveView('settings')}
-            className={`flex items-center gap-2 px-3 py-2 text-sm border-r border-border min-w-[120px] max-w-[200px] group ${
-              activeView === 'settings'
-                ? 'bg-background text-foreground border-b-2 border-b-primary'
-                : 'text-muted-foreground hover:bg-accent'
-            }`}
-          >
-            <Cog className="w-4 h-4" />
-            <span className="truncate flex-1 text-left">Settings</span>
-            <span
-              onClick={(e) => {
-                e.stopPropagation();
-                closeSettingsTab();
-              }}
-              className="p-0.5 rounded hover:bg-accent opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
-            >
-              <X className="w-3 h-3" />
-            </span>
-          </button>
-        )}
+              // Editor Tab
+              const tab = tabsById.get(tabId);
+              if (!tab) return null;
+
+              return (
+                <SortableTab
+                  key={tab.id}
+                  id={tab.id}
+                  isActive={tab.id === activeTabId && activeView === 'editor'}
+                  onSelect={() => {
+                    setActiveTab(tab.id);
+                    setActiveView('editor');
+                  }}
+                  onClose={(e) => handleCloseTab(e, tab.id, tab.isDirty)}
+                  label={tab.fileName!}
+                  isDirty={tab.isDirty}
+                />
+              );
+            })}
+          </SortableContext>
+        </DndContext>
       </div>
     </div>
   );
