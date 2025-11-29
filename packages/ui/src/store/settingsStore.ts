@@ -2,6 +2,9 @@ import { create } from 'zustand';
 
 export type MonacoTheme = 'vs' | 'vs-dark' | 'hc-black' | 'hc-light' | 'monokai' | 'dracula' | 'solarized-dark' | 'solarized-light';
 
+// Tailwind color palettes for accent color
+export type AccentColor = 'slate' | 'gray' | 'zinc' | 'neutral' | 'stone' | 'red' | 'orange' | 'amber' | 'yellow' | 'lime' | 'green' | 'emerald' | 'teal' | 'cyan' | 'sky' | 'blue' | 'indigo' | 'violet' | 'purple' | 'fuchsia' | 'pink' | 'rose';
+
 // Active view types: 'editor' for file tabs, 'schemas' for schemas panel, 'settings' for settings panel
 export type ActiveView = 'editor' | 'schemas' | 'settings';
 
@@ -9,6 +12,8 @@ const STORAGE_KEY = 'config-editor:settings';
 
 interface Settings {
   monacoTheme: MonacoTheme;
+  jsonIncludeComments: boolean;
+  accentColor: AccentColor;
 }
 
 interface SettingsStore {
@@ -17,6 +22,8 @@ interface SettingsStore {
   schemasTabOpen: boolean;
   settingsTabOpen: boolean;
   setMonacoTheme: (theme: MonacoTheme) => void;
+  setJsonIncludeComments: (value: boolean) => void;
+  setAccentColor: (color: AccentColor) => void;
   setActiveView: (view: ActiveView) => void;
   openSchemasTab: () => void;
   closeSchemasTab: () => void;
@@ -27,6 +34,8 @@ interface SettingsStore {
 
 const defaultSettings: Settings = {
   monacoTheme: 'vs',
+  jsonIncludeComments: false,
+  accentColor: 'sky',
 };
 
 export const useSettingsStore = create<SettingsStore>((set, get) => ({
@@ -39,6 +48,20 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     const newSettings = { ...get().settings, monacoTheme: theme };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(newSettings));
     set({ settings: newSettings });
+  },
+
+  setJsonIncludeComments: (value) => {
+    const newSettings = { ...get().settings, jsonIncludeComments: value };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(newSettings));
+    set({ settings: newSettings });
+  },
+
+  setAccentColor: (color) => {
+    const newSettings = { ...get().settings, accentColor: color };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(newSettings));
+    set({ settings: newSettings });
+    // Update the CSS custom property for accent color
+    document.documentElement.dataset.accent = color;
   },
 
   setActiveView: (view) => set({ activeView: view }),
@@ -67,7 +90,13 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
-        set({ settings: { ...defaultSettings, ...JSON.parse(stored) } });
+        const parsedSettings = { ...defaultSettings, ...JSON.parse(stored) };
+        set({ settings: parsedSettings });
+        // Apply accent color on load
+        document.documentElement.dataset.accent = parsedSettings.accentColor;
+      } else {
+        // Apply default accent color
+        document.documentElement.dataset.accent = defaultSettings.accentColor;
       }
     } catch (e) {
       console.error('Failed to load settings:', e);
