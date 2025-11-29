@@ -9,3 +9,4 @@ export * from './validation/keys';
 export * from './path/types';
 export * from './path/parser';
 export * from './path/operations';
+export * from './document/DocumentModel';
